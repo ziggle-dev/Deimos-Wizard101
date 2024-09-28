@@ -1,6 +1,6 @@
 import asyncio
 
-from wizwalker import Client, XYZ, Keycode, Primitive
+from wizwalker import AddressOutOfRange, Client, XYZ, Keycode, MemoryReadError, Primitive
 from wizwalker.memory import DynamicClientObject
 from wizwalker.memory.memory_objects.quest_data import QuestData, GoalData
 from wizwalker.extensions.wizsprinter import SprintyClient
@@ -23,6 +23,14 @@ class VMError(Exception):
     pass
 
 
+class UntilInfo:
+    def __init__(self, expr: Expression, id: int, exit_point: int, stack_size: int):
+        self.expr = expr
+        self.id = id
+        self.exit_point = exit_point
+        self.stack_size = stack_size
+
+
 class VM:
     def __init__(self, clients: list[Client]):
         self._clients = upgrade_clients(clients) # guarantee it's usable
@@ -30,18 +38,18 @@ class VM:
         self.running = False
         self.killed = False
         self._ip = 0 # instruction pointer
-        self._callstack: list[int] = []
+        self._stack = []
 
         # Every until loop condition must be checked for every vm step.
         # Once a condition becomes True, all untils that were entered later must be exited and removed.
         # This means that the stack must be rolled back to the index stored here and the rhs of this list is discarded.
-        self._until_stack_sizes: list[tuple[Expression, int]] = []
+        self._until_infos: list[UntilInfo] = []
 
     def reset(self):
         self.program = []
         self._ip = 0
-        self._callstack = []
-        self._until_stack_sizes = []
+        self._stack = []
+        self._until_infos = []
 
     def stop(self):
         self.running = False
@@ -121,8 +129,7 @@ class VM:
                         return False
                 return True
             case ExprKind.same_place:
-                other_clients = self._select_players(expression.command.data[1])
-                data = [await c.client_object.global_id_full() for c in other_clients]
+                data = [await c.client_object.global_id_full() for c in clients]
                 target = len(data)
                 for client in clients:
                     entities = await client.get_base_entity_list()
@@ -241,7 +248,7 @@ class VM:
                 return (left > right) #type: ignore
             case Eval():
                 assert(client != None)
-                return await self._eval_expression(expression.kind, client)
+                return await self._eval_expression(expression, client)
             case SelectorGroup():
                 players = self._select_players(expression.players)
                 expr = expression.expr
@@ -249,10 +256,26 @@ class VM:
                     if not await self.eval(expr, player):
                         return False
                 return True
+            case ReadVarExpr():
+                loc = await self.eval(expression.loc)
+                assert(loc != None and type(loc) == int)
+                test = self._stack[loc]
+                return test
+            case StackLocExpression():
+                return expression.offset
+            case SubExpression():
+                lhs = await self.eval(expression.lhs, client)
+                rhs = await self.eval(expression.rhs, client)
+                return lhs - rhs
+            case ContainsStringExpression():
+                lhs = await self.eval(expression.lhs, client)
+                rhs = await self.eval(expression.rhs, client)
+                return (rhs in lhs) #type: ignore
             case _:
                 raise VMError(f"Unimplemented expression type: {expression}")
 
-    async def _eval_expression(self, kind:EvalKind, client: Client):
+    async def _eval_expression(self, eval: Eval, client: Client):
+        kind = eval.kind
         match kind:
             case EvalKind.health:
                 return await client.stats.current_hitpoints()
@@ -270,6 +293,18 @@ class VM:
                 return await client.stats.current_gold()
             case EvalKind.max_gold:
                 return await client.stats.base_gold_pouch()
+            case EvalKind.windowtext:
+                path = eval.args[0]
+                assert(type(path) == list)
+                window = await get_window_from_path(client.root_window, path)
+                try:
+                    text = await window.maybe_text()
+                    if not text:
+                        text = await window.read_wide_string_from_offset(616)
+                    return text
+                except (ValueError, MemoryReadError):
+                    raise Exception(f'Cannot read window.')
+
 
 
     async def exec_deimos_call(self, instruction: Instruction):
@@ -439,12 +474,10 @@ class VM:
                 raise VMError(f"Unimplemented deimos call: {instruction}")
 
     async def _process_untils(self):
-        for i in range(len(self._until_stack_sizes) - 1, -1, -1):
-            (expr, stack_size) = self._until_stack_sizes[i]
-            if await self.eval(expr):
-                self._until_stack_sizes = self._until_stack_sizes[:i]
-                self._callstack = self._callstack[:stack_size]
-                self._ip = self._callstack.pop()
+        for i in range(len(self._until_infos) - 1, -1, -1):
+            info = self._until_infos[i]
+            if await self.eval(info.expr):
+                self._ip = info.exit_point
                 return
 
     async def step(self):
@@ -480,19 +513,31 @@ class VM:
                     self._ip += instruction.data[1]
 
             case InstructionKind.call:
-                self._callstack.append(self._ip + 1)
-                jump = instruction.data  
-                self._ip += jump # type: ignore
+                assert(type(instruction.data) == int)
+                self._stack.append(self._ip + 1)
+                self._ip += instruction.data
 
             case InstructionKind.ret:
-                self._ip = self._callstack.pop()
+                self._ip = self._stack.pop()
 
             case InstructionKind.enter_until:
                 assert type(instruction.data) == list
-                exit_dist = instruction.data[1]
-                self._callstack.append(self._ip + exit_dist)
-                self._until_stack_sizes.append((instruction.data[0], len(self._callstack)))
-                self._ip += 1 # simply advance, if the until is finished immediately that's fine because it's checked at the start of each step
+                self._until_infos.append(UntilInfo(
+                    expr=instruction.data[0],
+                    id=instruction.data[1],
+                    exit_point=self._ip + instruction.data[2],
+                    stack_size=len(self._stack)
+                ))
+                self._ip += 1
+
+            case InstructionKind.exit_until:
+                for i in range(len(self._until_infos) - 1, -1, -1):
+                    info = self._until_infos[i]
+                    if info.id == instruction.data:
+                        self._until_infos = self._until_infos[:i]
+                        self._stack = self._stack[:info.stack_size]
+                        break
+                self._ip += 1
 
             case InstructionKind.log_literal:
                 assert type(instruction.data) == list
@@ -511,14 +556,9 @@ class VM:
             case InstructionKind.log_window:
                 assert type(instruction.data) == list
                 clients = self._select_players(instruction.data[0])
-                path = instruction.data[1]
-                async with asyncio.TaskGroup() as tg:
-                    for client in clients:
-                        window = await get_window_from_path(client.root_window, path)
-                        if not window:
-                            raise VMError(f"Unable to find window at path: {path}")
-                        window_str = await window.maybe_text()
-                        logger.debug(f"{client.title} - {window_str}")
+                for client in clients:
+                    text = await self.eval(instruction.data[1], client)
+                    logger.debug(f"{client.title} - {text}")
                 self._ip += 1
             case InstructionKind.log_bagcount:
                 assert type(instruction.data) == list
@@ -549,6 +589,20 @@ class VM:
                 self._ip += 1
 
             case InstructionKind.label | InstructionKind.nop:
+                self._ip += 1
+
+            case InstructionKind.push_stack:
+                self._stack.append(None)
+                self._ip += 1
+
+            case InstructionKind.write_stack:
+                assert(instruction.data != None)
+                offset, expr = instruction.data
+                self._stack[offset] = await self.eval(expr)
+                self._ip += 1
+
+            case InstructionKind.pop_stack:
+                self._stack.pop()
                 self._ip += 1
 
             case InstructionKind.load_playstyle:
