@@ -62,6 +62,7 @@ class TokenKind(Enum):
     command_entitytp = auto()
     command_tozone = auto()
     command_load_playstyle = auto()
+    command_set_yaw = auto()
 
     # command expressions
     command_expr_window_visible = auto()
@@ -90,6 +91,8 @@ class TokenKind(Enum):
     command_expr_window_disabled = auto()
     command_expr_same_place = auto()
     command_expr_window_text = auto()
+    command_expr_potion_count = auto()
+    command_expr_has_quest = auto()
 
     colon = auto() # :
     comma = auto()
@@ -370,6 +373,8 @@ class Tokenizer:
                                         put_simple(TokenKind.command_tozone, full)
                                     case "loadplaystyle":
                                         put_simple(TokenKind.command_load_playstyle, full)
+                                    case "turncam" | "setcamyaw":
+                                        put_simple(TokenKind.command_set_yaw, full)
 
                                     # expression commands
                                     case "contains":
@@ -424,6 +429,12 @@ class Tokenizer:
                                         put_simple(TokenKind.command_expr_same_place, full)
                                     case "windowtext":
                                         put_simple(TokenKind.command_expr_window_text, full)
+                                    case "potioncount":
+                                        put_simple(TokenKind.command_expr_potion_count, full)
+                                    case "hasquest":
+                                        put_simple(TokenKind.command_expr_has_quest, full)
+                                    case "inrange":
+                                        put_simple(TokenKind.command_expr_in_range, full)
                                     case _:
                                         put_simple(TokenKind.identifier, full)
                             i = j

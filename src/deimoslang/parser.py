@@ -110,6 +110,11 @@ class Parser:
                 result.kind = CommandKind.expr
                 self.i += 1
                 result.data = [ExprKind.in_combat]
+            case TokenKind.command_expr_has_quest:
+                result.kind = CommandKind.expr
+                self.i += 1
+                text: str = self.expect_consume(TokenKind.string).value # type: ignore
+                result.data = [ExprKind.has_quest, text.lower()]
             case TokenKind.command_expr_has_dialogue:
                 result.kind = CommandKind.expr
                 self.i += 1
@@ -286,9 +291,9 @@ class Parser:
                 target = self.expect_consume(TokenKind.string)
                 assert(type(window_path) == list and type(target.value) == str)
                 if contains:
-                    return SelectorGroup(player_selector, ContainsStringExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value)))
+                    return SelectorGroup(player_selector, ContainsStringExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
                 else:
-                    return SelectorGroup(player_selector, EquivalentExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value)))
+                    return SelectorGroup(player_selector, EquivalentExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
             case TokenKind.command_expr_playercount:
                 result.kind = CommandKind.expr
                 self.i += 1
@@ -298,6 +303,11 @@ class Parser:
                 result.kind = CommandKind.expr
                 self.i += 1
                 result.data = [ExprKind.window_disabled, self.parse_window_path()]
+            case TokenKind.command_expr_in_range:
+                result.kind = CommandKind.expr
+                self.i += 1
+                text: str = self.expect_consume(TokenKind.string).value # type: ignore
+                result.data = [ExprKind.in_range, text.lower()]
             case TokenKind.command_expr_same_place:
                 result.kind = CommandKind.expr
                 self.i += 1
@@ -312,7 +322,19 @@ class Parser:
                 self.i += 1
                 text: str = self.expect_consume(TokenKind.string).value # type: ignore
                 result.data = [ExprKind.tracking_goal, text.lower()]
+            case TokenKind.command_expr_potion_count:
+                self.i += 1
+                num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
 
+                if num.kind == TokenKind.percent:
+                    evaluated = DivideExpression(Eval(EvalKind.potioncount), Eval(EvalKind.max_potioncount))
+                else:
+                    evaluated = Eval(EvalKind.potioncount)
+
+                # target == evaluated
+                return self.gen_equivalent_expression(target, evaluated, player_selector)
             case _:
                 return self.parse_unary_expression()
 
@@ -621,7 +643,11 @@ class Parser:
                 self.i += 1
                 result.data = [self.expect_consume(TokenKind.string).value]
                 self.end_line()
-
+            case TokenKind.command_set_yaw:
+                result.kind = CommandKind.set_yaw
+                self.i += 1
+                result.data = [self.expect_consume(TokenKind.number).value]
+                self.end_line()
             case _:
                 self.err(self.tokens[self.i], "Unhandled command token")
         return result

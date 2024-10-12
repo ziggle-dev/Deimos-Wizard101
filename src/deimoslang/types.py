@@ -24,6 +24,7 @@ class CommandKind(Enum):
     click = auto()
     tozone = auto()
     load_playstyle = auto()
+    set_yaw = auto()
 
 class TeleportKind(Enum):
     position = auto()
@@ -45,6 +46,8 @@ class EvalKind(Enum):
     gold = auto()
     max_gold = auto()
     windowtext = auto()
+    potioncount = auto()
+    max_potioncount = auto()
 
 class WaitforKind(Enum):
     dialog = auto()
@@ -76,6 +79,7 @@ class ExprKind(Enum):
     in_combat = auto()
     has_dialogue = auto()
     has_xyz = auto()
+    has_quest = auto()
     health_below = auto()
     health_above = auto()
     health = auto()
@@ -90,6 +94,7 @@ class ExprKind(Enum):
     gold_below = auto()
     window_disabled = auto()
     same_place = auto()
+    in_range = auto()
 
 
 # TODO: Replace asserts
