@@ -303,6 +303,13 @@ class VM:
                         raise VMError(f"Unimplemented unary expression: {expression}")
             case StringExpression():
                 return expression.string
+            case StrFormatExpression():
+                format_str = expression.format_str
+                values = []
+                for eval in expression.values:
+                    result = await self.eval(eval, client)
+                    values.append(result)
+                return format_str % tuple(values)
             case KeyExpression():
                 key = expression.key
                 if key not in Keycode.__members__:
@@ -321,8 +328,7 @@ class VM:
                 right = await self.eval(expression.rhs, client)
                 return (left > right) #type: ignore
             case Eval():
-                assert(client != None)
-                return await self._eval_expression(expression, client)
+                return await self._eval_expression(expression, client) #type: ignore
             case SelectorGroup():
                 players = self._select_players(expression.players)
                 expr = expression.expr
@@ -386,6 +392,8 @@ class VM:
                     return text.lower()
                 except (ValueError, MemoryReadError):
                     raise VMError(f'Cannot read window text from path: {path}')
+            case EvalKind.playercount:
+                return len(self._clients)
             case EvalKind.potioncount:
                 return await client.stats.potion_charge()
             case EvalKind.max_potioncount:
@@ -633,6 +641,7 @@ class VM:
                     stack_size=len(self.current_task.stack)
                 ))
                 self.current_task.ip += 1
+
             case InstructionKind.exit_until:
                 for i in range(len(self._until_infos) - 1, -1, -1):
                     info = self._until_infos[i]
@@ -641,53 +650,19 @@ class VM:
                         self.current_task.stack = self.current_task.stack[:info.stack_size]
                         break
                 self.current_task.ip += 1
-            case InstructionKind.log_literal:
-                assert type(instruction.data) == list
-                strs = []
-                for x in instruction.data:
-                    match x.kind:
-                        case TokenKind.string:
-                            strs.append(x.value)
-                        case TokenKind.identifier:
-                            strs.append(x.literal)
-                        case _:
-                            raise VMError(f"Unable to log: {x}")
-                s = " ".join(strs)
-                logger.debug(s)
+
+            case InstructionKind.log_single:
+                assert(isinstance(instruction.data, Expression))
+                logger.debug(await self.eval(instruction.data))
                 self.current_task.ip += 1
-            case InstructionKind.log_window:
+
+            case InstructionKind.log_multi:
                 assert type(instruction.data) == list
                 clients = self._select_players(instruction.data[0])
+                expr = instruction.data[1]
                 for client in clients:
-                    text = await self.eval(instruction.data[1], client)
-                    logger.debug(f"{client.title} - {text}")
-                self.current_task.ip += 1
-            case InstructionKind.log_bagcount:
-                assert type(instruction.data) == list
-                clients: list[SprintyClient] = self._select_players(instruction.data[0])
-                for client in clients:
-                    bag_space = await client.backpack_space()
-                    logger.debug(f'{client.title} - {bag_space[0]}/{bag_space[1]}')
-                self.current_task.ip += 1
-            case InstructionKind.log_health:
-                assert type(instruction.data) == list
-                clients: list[SprintyClient] = self._select_players(instruction.data[0])
-                for client in clients:
-                    logger.debug(f'{client.title} - {await client.stats.current_hitpoints()}/{await client.stats.max_hitpoints()}')
-                self.current_task.ip += 1
-
-            case InstructionKind.log_mana:
-                assert type(instruction.data) == list
-                clients: list[SprintyClient] = self._select_players(instruction.data[0])
-                for client in clients:
-                    logger.debug(f'{client.title} - {await client.stats.current_mana()}/{await client.stats.max_mana()}')
-                self.current_task.ip += 1
-
-            case InstructionKind.log_gold:
-                assert type(instruction.data) == list
-                clients: list[SprintyClient] = self._select_players(instruction.data[0])
-                for client in clients:
-                    logger.debug(f'{client.title} - {await client.stats.current_gold()}/{await client.stats.base_gold_pouch()}')
+                    string = await self.eval(expr, client)
+                    logger.debug(f"{client.title} - {string}")
                 self.current_task.ip += 1
 
             case InstructionKind.label | InstructionKind.nop:
@@ -713,7 +688,7 @@ class VM:
                 yaw = instruction.data[1]
                 async with TaskGroup() as tg:
                     for client in clients:
-                        tg.create_task(client.body.write_yaw(yaw));
+                        tg.create_task(client.body.write_yaw(yaw))
                 self.current_task.ip += 1
             case InstructionKind.load_playstyle:
                 logger.debug("Loading playstyle")

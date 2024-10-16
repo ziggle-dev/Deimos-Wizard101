@@ -48,6 +48,7 @@ class EvalKind(Enum):
     windowtext = auto()
     potioncount = auto()
     max_potioncount = auto()
+    playercount = auto()
 
 class WaitforKind(Enum):
     dialog = auto()
@@ -61,12 +62,8 @@ class ClickKind(Enum):
     position = auto()
 
 class LogKind(Enum):
-    window = auto()
-    literal = auto()
-    bagcount = auto()
-    mana = auto()
-    health = auto()
-    gold = auto()
+    multi = auto()
+    single = auto()
 
 class ExprKind(Enum):
     window_visible = auto()
@@ -151,6 +148,14 @@ class StringExpression(Expression):
 
     def __repr__(self) -> str:
         return f"String({self.string})"
+
+class StrFormatExpression(Expression):
+    def __init__(self, format_str: str, *args):
+        self.format_str = format_str
+        self.values = args
+
+    def __repr__(self) -> str:
+        return f"StrFormat({self.format_str}, {self.values})"
 
 class UnaryExpression(Expression):
     def __init__(self, operator: Token, expr: Expression):

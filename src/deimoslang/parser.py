@@ -295,10 +295,32 @@ class Parser:
                 else:
                     return SelectorGroup(player_selector, EquivalentExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
             case TokenKind.command_expr_playercount:
-                result.kind = CommandKind.expr
                 self.i += 1
-                num = self.parse_expression()
-                result.data = [ExprKind.playercount, num]
+                num = self.expect_consume(TokenKind.number)
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+                evaluated = Eval(EvalKind.playercount)
+
+                # target == evaluated
+                return self.gen_equivalent_expression(target, evaluated, player_selector)
+            case TokenKind.command_expr_playercountabove:
+                self.i += 1
+                num = self.expect_consume(TokenKind.number)
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+                evaluated = Eval(EvalKind.playercount)
+
+                # evaluated_value > target_value
+                return self.gen_greater_expression(evaluated, target, player_selector)
+            case TokenKind.command_expr_playercountbelow:
+                self.i += 1
+                num = self.expect_consume(TokenKind.number)
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+                evaluated = Eval(EvalKind.playercount)
+
+                # target > evaluated
+                return self.gen_greater_expression(target, evaluated, player_selector)
             case TokenKind.command_expr_window_disabled:
                 result.kind = CommandKind.expr
                 self.i += 1
@@ -335,6 +357,32 @@ class Parser:
 
                 # target == evaluated
                 return self.gen_equivalent_expression(target, evaluated, player_selector)
+            case TokenKind.command_expr_potion_countabove:
+                self.i += 1
+                num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+
+                if num.kind == TokenKind.percent:
+                    evaluated = DivideExpression(Eval(EvalKind.potioncount), Eval(EvalKind.max_potioncount))
+                else:
+                    evaluated = Eval(EvalKind.potioncount)
+
+                # evaluated_value > target_value
+                return self.gen_greater_expression(evaluated, target, player_selector)
+            case TokenKind.command_expr_potion_countbelow:
+                self.i += 1
+                num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+
+                if num.kind == TokenKind.percent:
+                    evaluated = DivideExpression(Eval(EvalKind.potioncount), Eval(EvalKind.max_potioncount))
+                else:
+                    evaluated = Eval(EvalKind.potioncount)
+
+                # target > evaluated
+                return self.gen_greater_expression(target, evaluated, player_selector)
             case _:
                 return self.parse_unary_expression()
 
@@ -486,37 +534,46 @@ class Parser:
                 kind = self.tokens[self.i].kind
                 result.kind = CommandKind.log
                 def print_literal():
-                    result.data = [LogKind.literal]
+                    final_str = ""
                     while self.tokens[self.i].kind != TokenKind.END_LINE:
                         tok = self.tokens[self.i]
-                        if tok.kind != TokenKind.string:
-                            tok.kind = TokenKind.identifier
-                        result.data.append(tok)
+                        match tok.kind:
+                            case TokenKind.string:
+                                final_str += f"{tok.value} "
+                            case _:
+                                final_str += f"{tok.literal} "
                         self.i += 1
+                    result.data = [LogKind.single, StringExpression(final_str)]
                 match kind:
                     case TokenKind.identifier:
                         if self.tokens[self.i].literal == "window":
                             self.i += 1
                             window_path = self.parse_window_path()
-                            result.data = [LogKind.window, Eval(EvalKind.windowtext, [window_path])]
+                            result.data = [LogKind.multi, StrFormatExpression("windowtext: %s", Eval(EvalKind.windowtext, window_path))]
                         else:
                             print_literal()
                     case TokenKind.command_expr_bagcount:
                         self.i += 1
-                        result.data = [LogKind.bagcount]
+                        result.data = [LogKind.multi, StrFormatExpression("bagcount: %d/%d", Eval(EvalKind.bagcount),Eval(EvalKind.max_bagcount))]
                     case TokenKind.command_expr_mana:
                         self.i += 1
-                        result.data = [LogKind.mana]
+                        result.data = [LogKind.multi, StrFormatExpression("mana: %d/%d", Eval(EvalKind.mana), Eval(EvalKind.max_mana))]
                     case TokenKind.command_expr_health:
                         self.i += 1
-                        result.data = [LogKind.health]
+                        result.data = [LogKind.multi, StrFormatExpression("health: %d/%d", Eval(EvalKind.health), Eval(EvalKind.max_health))]
                     case TokenKind.command_expr_gold:
                         self.i += 1
-                        result.data = [LogKind.gold]
+                        result.data = [LogKind.multi, StrFormatExpression("gold: %d/%d", Eval(EvalKind.gold), Eval(EvalKind.max_gold))]
+                    case TokenKind.command_expr_potion_count:
+                        self.i += 1
+                        result.data = [LogKind.multi, StrFormatExpression("potioncount: %d/%d", Eval(EvalKind.potioncount), Eval(EvalKind.max_potioncount))]
+                    case TokenKind.command_expr_playercount:
+                        self.i += 1
+                        result.data = [LogKind.single, StrFormatExpression("playercount: %d", Eval(EvalKind.playercount))]
                     case TokenKind.command_expr_window_text:
                         self.i += 1
                         window_path = self.parse_window_path()
-                        result.data = [LogKind.window, Eval(EvalKind.windowtext, [window_path])]
+                        result.data = [LogKind.multi, StrFormatExpression("windowtext: %s", Eval(EvalKind.windowtext, [window_path]))]
                     case TokenKind.string:
                         print_literal()
                     case _:
