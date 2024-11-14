@@ -21,7 +21,7 @@ import datetime
 from configparser import ConfigParser
 import statistics
 import re
-import pypresence
+# import pypresence
 from pypresence import AioPresence
 from src.command_parser import execute_flythrough, parse_command
 from src.auto_pet import nomnom
@@ -51,11 +51,12 @@ from src.deimoslang import vm
 cMessageBox = ctypes.windll.user32.MessageBoxW
 
 
-tool_version = '3.8.5'
-tool_name = 'Deimos'
-tool_author = 'Slackaduts'
-repo_name = tool_name + '-Wizard101'
-branch = 'master'
+tool_version: str = '3.9.0'
+tool_name: str = 'Deimos'
+tool_author: str = 'Deimos-Wizard101'
+repo_name: str = tool_name + '-Wizard101'
+branch: str = 'master'
+repo_path_raw: str = f'https://codeberg.org/{tool_author}/{repo_name}/raw/branch/{branch}'
 
 type_format_dict = {
 "char": "<c",
@@ -200,7 +201,8 @@ def read_config(config_name : str):
 
 while True:
 	if not os.path.exists(f'{tool_name}-config.ini'):
-		download_file(f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}-config.ini', f'{tool_name}-config.ini')
+		# download_file(f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}-config.ini', f'{tool_name}-config.ini')
+		download_file(f'{repo_path_raw}/{tool_name}-config.ini', f'{tool_name}-config.ini')
 	time.sleep(0.1)
 
 	read_config(f'{tool_name}-config.ini')
@@ -265,14 +267,14 @@ def generate_timestamp() -> str:
 
 
 def config_update():
-	config_url = f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}-config.ini'
+	config_url = f'{repo_path_raw}/{tool_name}-config.ini'
 
 	if not os.path.exists(f'{tool_name}-config.ini'):
 		download_file(url=config_url, file_name=f'{tool_name}-config.ini')
 		time.sleep(0.1)
 
-	if not os.path.exists(f'README.txt'):
-		download_file(f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/README.txt', 'README.txt')
+	if not os.path.exists(f'README.md'):
+		download_file(f'{repo_path_raw}/README.md', 'README.md')
 
 	download_file(url=config_url, file_name=f'{tool_name}-Testconfig.ini', delete_previous=True, debug=False)
 	time.sleep(0.1)
@@ -312,7 +314,7 @@ def config_update():
 
 
 def run_updater():
-	download_file(url=f"https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}Updater.exe", file_name=f'{tool_name}Updater.exe', delete_previous=True)
+	download_file(url=f"{repo_path_raw}/{tool_name}Updater.exe", file_name=f'{tool_name}Updater.exe', delete_previous=True)
 	time.sleep(0.1)
 	subprocess.Popen(f'{tool_name}Updater.exe')
 	sys.exit()
@@ -322,7 +324,7 @@ def get_latest_version() -> str:
 	update_server = None
 
 	try:
-		update_server = read_webpage(f"https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/LatestVersion.txt")
+		update_server = read_webpage(f"{repo_path_raw}/LatestVersion.txt")
 	except:
 		time.sleep(0.1)
 
@@ -2019,7 +2021,7 @@ def handle_tool_updating():
 	update_server = None
 
 	try:
-		update_server = read_webpage(f"https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/LatestVersion.txt")
+		update_server = read_webpage(f"{repo_path_raw}/LatestVersion.txt")
 	except:
 		time.sleep(0.1)
 
