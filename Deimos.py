@@ -5,7 +5,7 @@ import queue
 import threading
 import wizwalker
 from wizwalker import Keycode, HotkeyListener, ModifierKeys, utils, XYZ, Orient
-from wizwalker.utils import get_all_wizard_handles
+from wizwalker.utils import get_all_wizard_handles, get_foreground_window
 from wizwalker.client_handler import ClientHandler, Client
 from wizwalker.extensions.scripting import teleport_to_friend_from_list
 from wizwalker.memory.memory_objects.camera_controller import DynamicCameraController, ElasticCameraController
@@ -21,7 +21,7 @@ import datetime
 from configparser import ConfigParser
 import statistics
 import re
-import pypresence
+# import pypresence
 from pypresence import AioPresence
 from src.command_parser import execute_flythrough, parse_command
 from src.auto_pet import nomnom
@@ -40,21 +40,23 @@ from src.gui_inputs import param_input
 from src import discsdk
 from wizwalker.extensions.wizsprinter.wiz_navigator import toZoneDisplayName, toZone
 from wizwalker.extensions.wizsprinter.sprinty_combat import SprintyCombat
-from src.config_combat import StrCombatConfigProvider, delegate_combat_configs
+from src.config_combat import StrCombatConfigProvider, delegate_combat_configs, default_config
 from typing import List
 
 from src import deimosgui
 from src.deimosgui import GUIKeys
 from src.tokenizer import tokenize
+from src.deimoslang import vm
 
 cMessageBox = ctypes.windll.user32.MessageBoxW
 
 
-tool_version = '3.8.1'
-tool_name = 'Deimos'
-tool_author = 'Slackaduts'
-repo_name = tool_name + '-Wizard101'
-branch = 'master'
+tool_version: str = '3.9.0'
+tool_name: str = 'Deimos'
+tool_author: str = 'Deimos-Wizard101'
+repo_name: str = tool_name + '-Wizard101'
+branch: str = 'master'
+repo_path_raw: str = f'https://codeberg.org/{tool_author}/{repo_name}/raw/branch/{branch}'
 
 type_format_dict = {
 "char": "<c",
@@ -110,7 +112,7 @@ def read_config(config_name : str):
 	use_potions = parser.getboolean('settings', 'use_potions', fallback=True)
 	rpc_status = parser.getboolean('settings', 'rich_presence', fallback=True)
 	drop_status = parser.getboolean('settings', 'drop_logging', fallback=True)
-	anti_afk_status = parser.getboolean('settings', 'use_anti_afk', fallback=True) 
+	anti_afk_status = parser.getboolean('settings', 'use_anti_afk', fallback=True)
 
 
 	# Hotkeys
@@ -199,7 +201,8 @@ def read_config(config_name : str):
 
 while True:
 	if not os.path.exists(f'{tool_name}-config.ini'):
-		download_file(f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}-config.ini', f'{tool_name}-config.ini')
+		# download_file(f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}-config.ini', f'{tool_name}-config.ini')
+		download_file(f'{repo_path_raw}/{tool_name}-config.ini', f'{tool_name}-config.ini')
 	time.sleep(0.1)
 
 	read_config(f'{tool_name}-config.ini')
@@ -245,10 +248,8 @@ tp_task: asyncio.Task = None
 speed_task: asyncio.Task = None
 pet_task: asyncio.Task = None
 
-bot_task: asyncio.Task = None 
+bot_task: asyncio.Task = None
 flythrough_task: asyncio.Task = None
-
-default_config = "any<trap & inc_damage>[potent] @ enemy | any<trap & inc_damage & aoe>[potent] | any<blade & out_damage>[sharp] @ self | any<blade & out_damage & aoe>[sharp] | any<global> | any<aura & out_damage> | any<shadow> | any<damage & aoe>[epic] | any<damage>[epic] @ enemy"
 
 def file_len(filepath) -> List[str]:
 	# return the number of lines in a file
@@ -266,14 +267,14 @@ def generate_timestamp() -> str:
 
 
 def config_update():
-	config_url = f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}-config.ini'
+	config_url = f'{repo_path_raw}/{tool_name}-config.ini'
 
 	if not os.path.exists(f'{tool_name}-config.ini'):
 		download_file(url=config_url, file_name=f'{tool_name}-config.ini')
 		time.sleep(0.1)
 
-	if not os.path.exists(f'README.txt'):
-		download_file(f'https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/README.txt', 'README.txt')
+	if not os.path.exists(f'README.md'):
+		download_file(f'{repo_path_raw}/README.md', 'README.md')
 
 	download_file(url=config_url, file_name=f'{tool_name}-Testconfig.ini', delete_previous=True, debug=False)
 	time.sleep(0.1)
@@ -313,7 +314,7 @@ def config_update():
 
 
 def run_updater():
-	download_file(url=f"https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/{tool_name}Updater.exe", file_name=f'{tool_name}Updater.exe', delete_previous=True)
+	download_file(url=f"{repo_path_raw}/{tool_name}Updater.exe", file_name=f'{tool_name}Updater.exe', delete_previous=True)
 	time.sleep(0.1)
 	subprocess.Popen(f'{tool_name}Updater.exe')
 	sys.exit()
@@ -323,7 +324,7 @@ def get_latest_version() -> str:
 	update_server = None
 
 	try:
-		update_server = read_webpage(f"https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/LatestVersion.txt")
+		update_server = read_webpage(f"{repo_path_raw}/LatestVersion.txt")
 	except:
 		time.sleep(0.1)
 
@@ -488,6 +489,7 @@ async def main():
 
 		for p in walker.clients:
 			p.title = 'Wizard101'
+			# Uncomment when freecam is fixed
 			if await p.game_client.is_freecam():
 				await p.camera_elastic()
 
@@ -738,12 +740,12 @@ async def main():
 	# 	if side_quest_status is not None:
 	# 		if side_quest_status:
 	# 			logger.debug('Disabling side quests.')
-	# 			gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Side QuestsStatus', 'Disabled')))		
+	# 			gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Side QuestsStatus', 'Disabled')))
 
 	# 		else:
 	# 			logger.debug('Enabling side quests.')
 	# 			gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Side QuestsStatus', 'Enabled')))
-			
+
 	# 		side_quest_status = not side_quest_status
 	# 	else:
 	# 		logger.debug('This config variable has not yet been initialized, enabling the option now.')
@@ -799,6 +801,16 @@ async def main():
 			await listener.remove_hotkey(Keycode[toggle_auto_questing_key], modifiers=ModifierKeys.NOREPEAT)
 			hotkey_status = False
 
+	def get_foreground_client():
+		foreground = [c for c in walker.clients if c.is_foreground]
+		if len(foreground) > 0:
+			return foreground[0]
+		if not foreground_client:
+			return walker.clients[0]
+		return foreground_client
+
+	def get_background_clients():
+		return [c for c in walker.clients if not c.is_foreground]
 
 	async def foreground_client_switching():
 		await asyncio.sleep(2)
@@ -817,14 +829,8 @@ async def main():
 		nonlocal foreground_client
 		nonlocal background_clients
 		while True:
-			foreground_client_list = [c for c in walker.clients if c.is_foreground]
-			# print(foreground_client_list)
-			if len(foreground_client_list) > 0:
-				foreground_client = foreground_client_list[0]
-			else:
-				# foreground_client = None
-				pass
-			background_clients = [c for c in walker.clients if not c.is_foreground and c != foreground_client]
+			foreground_client = get_foreground_client()
+			background_clients = get_background_clients()
 			await asyncio.sleep(0.1)
 
 
@@ -851,6 +857,7 @@ async def main():
 			# 		client.in_combat = False
 			# 	await asyncio.sleep(0.1)
 			while True:
+				# print(await client.game_client.is_freecam())
 				if not freecam_status:
 					client.in_combat = await client.in_battle()
 				await asyncio.sleep(0.1)
@@ -994,7 +1001,6 @@ async def main():
 	async def is_duel_circle_joinable(p: Client):
 		sprinter = SprintyClient(p)
 		await asyncio.sleep(7)
-		just_entered_combat = False
 
 		distance, duel_circle_xyz = await nearest_duel_circle_distance_and_xyz(sprinter)
 		# if after 7 seconds we are not in a battle position, we either teleported while invincible or teleported to a non-joinable fight
@@ -1027,8 +1033,6 @@ async def main():
 					other_clients.append(c)
 
 			safe_distance = 620
-			just_left_combat = False
-			just_entered_combat = False
 			while True:
 				await asyncio.sleep(.5)
 
@@ -1185,7 +1189,7 @@ async def main():
 		# anti AFK implementation on a per client basis.
 		if not anti_afk_status:
 			return
-		
+
 		async def async_anti_afk(client: Client):
 			# await client.root_window.debug_print_ui_tree()
 			# print(await client.body.position())
@@ -1198,8 +1202,7 @@ async def main():
 					await asyncio.sleep(350)
 					client_xyz_2 = await client.body.position()
 					distance_moved = calc_Distance(client_xyz, client_xyz_2)
-					if distance_moved < 5.0 and not await client.in_battle() and not client.feeding_pet_status and not client.entity_detect_combat_status:
-
+					if distance_moved < 5.0 and not await client.in_battle() and not client.feeding_pet_status and not client.entity_detect_combat_status and not sigil_status:
 						logger.debug(f"Client {client.title} - AFK client detected, moving slightly.")
 						await client.send_key(key=Keycode.A)
 						await asyncio.sleep(0.1)
@@ -1437,7 +1440,7 @@ async def main():
 							# 	else:
 							# 		logger.debug(f'Setting Auto Pet World to {com.data[1]}')
 							# 		assign_pet_level(com.data[1])
-										
+
 
 							case deimosgui.GUICommandType.SetCamPosition:
 								if foreground_client:
@@ -1544,29 +1547,45 @@ async def main():
 							case deimosgui.GUICommandType.ExecuteBot:
 								command_data: str = com.data
 
+								expert_mode = command_data.startswith("###deimos_expertmode")
 								async def run_bot():
 									logger.debug('Started Bot')
+									if expert_mode:
+										while True:
+											v = vm.VM(walker.clients)
+											try:
+												v.load_from_text(command_data)
+												v.running = True
+												while v.running:
+													await v.step()
+											except Exception as e:
+												logger.exception(e)
+											v.running = False
+											if v.killed:
+												break
+											await asyncio.sleep(1)
+									else:
+										split_commands = command_data.splitlines()
+										web_commands_strs = ['webpage', 'pull', 'embed']
+										new_commands = []
 
-									split_commands = command_data.split('\n')
-									web_command_strs = ['webpage', 'pull', 'embed']
-									new_commands = []
+										for command_str in split_commands:
+											command_tokens = tokenize(command_str)
+											if command_tokens and command_tokens[0].lower in web_commands_strs:
+												web_commands = read_webpage(command_tokens[1])
+												new_commands.extend(web_commands)
+											else:
+												new_commands.append(command_str)
 
-									for command_str in split_commands:
-										command_tokens = tokenize(command_str)
+										while True:
+											for command_str in new_commands:
+												await parse_command(walker.clients, command_str)
+											await asyncio.sleep(1)
 
-										if command_tokens and command_tokens[0].lower() in web_command_strs:
-											web_commands = read_webpage(command_tokens[1])
-											new_commands.extend(web_commands)
-
-										else:
-											new_commands.append(command_str)
-
-									while True:
-										for command_str in new_commands:
-											await parse_command(walker.clients, command_str)
-
-										await asyncio.sleep(1)
-
+								if bot_task is not None and not bot_task.cancelled():
+									bot_task.cancel()
+									logger.debug('Bot Killed')
+									bot_task = None
 								bot_task = asyncio.create_task(try_task_coro(run_bot, walker.clients, True))
 
 							case deimosgui.GUICommandType.KillBot:
@@ -1578,13 +1597,11 @@ async def main():
 							case deimosgui.GUICommandType.SetPlaystyles:
 								combat_configs = delegate_combat_configs(str(com.data), len(walker.clients))
 								for i, client in enumerate(walker.clients):
-									if i not in combat_configs:
-										client.combat_config = default_config
-									client.combat_config = combat_configs[i]
+									client.combat_config = combat_configs.get(i, default_config)
 
 								await toggle_combat_hotkey(False)
 								await toggle_combat_hotkey(False)
-									
+
 
 							case deimosgui.GUICommandType.SetScale:
 								desired_scale = param_input(com.data, 1.0)
@@ -1751,7 +1768,7 @@ async def main():
 			try:
 				banlistcontents = requests.get(f"https://raw.githubusercontent.com/{tool_author}/{tool_name.lower()}-bans/main/{tool_name}Bans.txt").content.decode()
 				banlist = set([x.split(" ")[0].strip() for x in banlistcontents.splitlines()])
-				
+
 				handle = discsdk.connect()
 				discsdk.send(handle, shake)
 				resp = discsdk.recv(handle)
@@ -1772,12 +1789,34 @@ async def main():
 
 
 	async def zone_check_loop():
-		zone_blacklist = ['WizardCity-TreasureTower-WC_TT', 'Raids', 'Battlegrounds']
+		zone_blacklist = [
+			'WizardCity-TreasureTower-WC_TT',
+			'Raids',
+			'Battlegrounds'
+		]
+
+		explicit_zone_blacklist = [
+			'WizardCity/WC_Duel_Arena_New',
+			'WizardCity/KT_Duel_Arena',
+			'WizardCity/MB_Arena',
+			'WizardCity/MS_Arena',
+			'WizardCity/DS_Arena',
+			'WizardCity/CL_Arena',
+			'WizardCity/ZF_Arena',
+			'WizardCity/AV_Arena',
+			'WizardCity/AZ_Arena',
+			'WizardCity/PA_Arena',
+			'WizardCity/GH_Arena',
+			'WizardCity/LM_Arena'
+		]
 
 		async def async_zone_check(client: Client):
 			while True:
 				await asyncio.sleep(0.25)
 				zone_name = await client.zone_name()
+				if zone_name in explicit_zone_blacklist:
+					logger.critical(f'Client {client.title} entered area with known anticheat, killing {tool_name}.')
+					await kill_tool(False)
 				if zone_name and '/' in zone_name:
 					split_zone_name = zone_name.split('/')
 
@@ -1936,7 +1975,7 @@ async def main():
 		zone_check_loop_task = asyncio.create_task(zone_check_loop())
 		anti_afk_questing_loop_task = asyncio.create_task(anti_afk_questing_loop())
 		ban_watcher_task = asyncio.create_task(ban_watcher())
-		
+
 		# while True:
 		# await asyncio.wait([foreground_client_switching_task, speed_switching_task, combat_loop_task, assign_foreground_clients_task, dialogue_loop_task, anti_afk_loop_task, sigil_loop_task, in_combat_loop_task, questing_leader_combat_detection_task, gui_task, potion_usage_loop_task, rpc_loop_task, drop_logging_loop_task, zone_check_loop_task])
 		done, _ = await asyncio.wait([
@@ -1957,7 +1996,7 @@ async def main():
 		for t in done:
 			if t.done() and t.exception() != None:
 				exc = t.exception()
-				logger.exception(exc) 
+				logger.exception(exc)
 				raise exc
 
 	finally:
@@ -1982,7 +2021,7 @@ def handle_tool_updating():
 	update_server = None
 
 	try:
-		update_server = read_webpage(f"https://raw.githubusercontent.com/{tool_author}/{repo_name}/{branch}/LatestVersion.txt")
+		update_server = read_webpage(f"{repo_path_raw}/LatestVersion.txt")
 	except:
 		time.sleep(0.1)
 

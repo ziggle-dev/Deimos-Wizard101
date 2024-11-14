@@ -5,11 +5,12 @@ import traceback
 import requests
 
 import wizwalker.errors
-from wizwalker import Client, Keycode, XYZ, kernel32
+from wizwalker import Client, Keycode, XYZ, Primitive, kernel32
+from wizwalker.memory.memory_objects.character_registry import DynamicMemoryObject
 from wizwalker.utils import get_all_wizard_handles, override_wiz_install_location, get_pid_from_handle
 from wizwalker.extensions.scripting.utils import _maybe_get_named_window, _cycle_to_online_friends, _click_on_friend, _teleport_to_friend, _friend_list_entry
 from wizwalker.extensions.wizsprinter.wiz_navigator import toZone
-from wizwalker.memory import Window, WindowFlags
+from wizwalker.memory import ObjectType, Window, WindowFlags
 from wizwalker.combat import CombatMember
 from loguru import logger
 
@@ -161,7 +162,7 @@ async def new_portals_cycle( client: Client, location: str):
                 currentPage = pageCount.split('/', 1)[0]
                 maxPage = pageCount.split('/', 1)[1]
                 break
-            
+
         spiralGateName = location
 
         isChildFound = False
@@ -273,13 +274,11 @@ async def safe_click_window(client: Client, path):
 async def click_window_by_path(client: Client, path: list[str], hooks: bool = False):
     # FULL CREDIT TO SIROLAF FOR THIS FUNCTION, notfaj was here :3
     # clicks window from path, must actually exist in the UI tree
-    async with client.mouse_handler:
-        root = client.root_window
-        windows = await get_window_from_path(root, path)
-        if windows:
+    root = client.root_window
+    windows = await get_window_from_path(root, path)
+    if windows:
+        async with client.mouse_handler:
             await client.mouse_handler.click_window(windows)
-        else:
-            await asyncio.sleep(0.1)
 
 
 
@@ -395,34 +394,32 @@ async def navigate_to_ravenwood(client: Client):
 
     # Navigate through bartleby if needed
     if bartleby_navigation:
-        await client.goto(-9.711, -2987.212)
-        await client.send_key(Keycode.W, 0.3)
-
-        while True:
-            try:
-                await safe_wait_for_zone_change(client, name='WizardCity/WC_Ravenwood_Teleporter', handle_hooks_if_needed=True)
-                break
-            # backup since the above method fails sometimes
-            except LoadingScreenNotFound:
-                await client.teleport(XYZ(x=18.072603225708008, y=-3250.805419921875, z=244.01708984375))
-                await client.send_key(Keycode.W, 0.5)
+        await asyncio.sleep(1)
+        current_zone = await client.zone_name()
+        await asyncio.sleep(0.25)
+        await client.teleport(XYZ(x=-15.123456001281738, y=-3244.67529296875, z=244.01925659179688))
+        await wait_for_zone_change(client, current_zone=current_zone)
 
 
 async def navigate_to_commons_from_ravenwood(client: Client):
-    # walk to ravenwood exit
-    await client.goto(-19.549846649169922, -297.7527160644531)
-    await client.goto(-5.701, -1536.491)
+    # teleport to ravenwood exit
     current_zone = await client.zone_name()
-    while not await client.is_loading():
-        await client.send_key(Keycode.W, 0.1)
+    await asyncio.sleep(1)
+    await client.teleport(XYZ(x=-0.7323388457298279, y=-2200.223388671875, z=-155.97055053710938))
     await wait_for_zone_change(client, current_zone=current_zone)
+    await asyncio.sleep(1)
 
 
 async def navigate_to_potions(client: Client):
+    hilda = XYZ(-4398.70654296875, 1016.1954345703125, 229.00079345703125)
+     # make sure client is not loading
+    while await client.is_loading():
+      await asyncio.sleep(0.1)
+      #Teleports to Hilda if not already in range
+    while not await client.is_in_npc_range():
+      await client.teleport(hilda)
+      await asyncio.sleep(2)
     # Teleport to hilda brewer
-    Hilda_XYZ = XYZ(-4398.70654296875, 1016.1954345703125, 229.00079345703125)
-    await client.teleport(Hilda_XYZ)
-    # await client.send_key(Keycode.S, 0.1)
 
 
 async def buy_potions(client: Client, recall: bool = True, original_zone=None):
@@ -457,10 +454,9 @@ async def buy_potions(client: Client, recall: bool = True, original_zone=None):
                 if await client.stats.potion_charge() >= 1.0:
                     original_potion_count = await client.stats.potion_charge()
 
-                    while await client.stats.potion_charge() == original_potion_count:
-                        logger.debug(f'Client {client.title} - Using potion')
-                        await click_window_by_path(client, potion_usage_path, True)
-                        await asyncio.sleep(3.0)
+                    logger.debug(f'Client {client.title} - Using potion')
+                    await click_window_by_path(client, potion_usage_path, True)
+                    await asyncio.sleep(3.0)
 
     except:
         print(traceback.print_exc())
@@ -609,7 +605,7 @@ async def safe_wait_for_zone_change(self: Client, name: Optional[str] = None, *,
         if await is_visible_by_path(self, friend_is_busy_and_dungeon_reset_path):
             async with self.mouse_handler:
                 await click_window_by_path(self, friend_is_busy_and_dungeon_reset_path)
-    
+
             raise FriendBusyOrInstanceClosed
 
         if timeout is not None:
@@ -635,20 +631,6 @@ async def click_window_until_closed(client: Client, path):
         return False
 
 
-async def refill_potions_if_needed(p: Client):
-    if await p.stats.potion_charge() < 1.0 and await p.stats.reference_level() >= 6:
-        for i in range(3):
-            await p.send_key(Keycode.PAGE_DOWN)
-
-        await refill_potions(p, mark=True, recall=False)
-
-        for i in range(3):
-            await p.send_key(Keycode.PAGE_UP)
-
-        await p.wait_for_zone_change(name='WizardCity/WC_Hub')
-        await asyncio.sleep(2.0)
-
-
 async def refill_potions(client: Client, mark: bool = False, recall: bool = True, original_zone=None):
     if await client.stats.reference_level() >= 6:
         # mark if needed
@@ -668,6 +650,11 @@ async def refill_potions(client: Client, mark: bool = False, recall: bool = True
         await navigate_to_potions(client)
         # Buy potions
         await buy_potions(client, recall, original_zone=original_zone)
+
+
+async def refill_potions_if_needed(p: Client, mark: bool = False, recall: bool = True, original_zone=None):
+    if await p.stats.potion_charge() < 1.0 and await p.stats.reference_level() >= 6:
+        await refill_potions(p, mark, recall, original_zone)
 
 
 async def auto_potions(client: Client, mark: bool = False, minimum_mana: int = 16, buy: bool = True):
@@ -966,7 +953,7 @@ async def teleport_to_friend_from_list(
 async def check_for_multiple_friends_in_list(client: Client, friend_names: list[str]):
 
     async with client.mouse_handler:
-        
+
         # if some form of friend list or friend popup is already open, close it
         # This fails consistently, even when the friends list is actually open.  Detecting whether the friends list is open is also horrifically inconsistent so just brute force it
         for i in range(5):
@@ -1278,7 +1265,7 @@ async def class_snapshot(instance, recurse: bool = True, current_depth: int = 0,
 
     if current_depth >= max_depth: #If we have reached or exceeded max depth, return an empty dict
         return snapshot_data
-    
+
     if not recurse and current_depth: #If we have any depth and we are not recursing, return an empty dict
         return snapshot_data
 
