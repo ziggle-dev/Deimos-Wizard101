@@ -1362,5 +1362,5 @@ def override_wiz_install_using_handle(max_size = 100):
     handle = kernel32.OpenProcess(0x410, 0, pid) # PROCESS_QUERY_INFORMATION and PROCESS_VM_READ
     ctypes.windll.psapi.GetModuleFileNameExW(handle, None, ctypes.byref(path), max_size)
     kernel32.CloseHandle(handle)
-    install_location = path.value.replace("\Bin\WizardGraphicalClient.exe", "")
+    install_location = path.value.replace("\\Bin\\WizardGraphicalClient.exe", "")
     override_wiz_install_location(install_location)
