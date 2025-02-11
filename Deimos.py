@@ -1353,8 +1353,6 @@ async def main():
 												entity_name = await entity.object_name()
 												entities_info += f'{entity_name}, XYZ({entity_pos.x}, {entity_pos.y}, {entity_pos.z})\n\n'
 											pyperclip.copy(entities_info)
-											with open('entity_list.txt', 'w') as file:
-												file.write(entities_info)
 
 											if entities_info:
 												logger.success("Available Nearby Entities:")
