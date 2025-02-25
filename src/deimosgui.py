@@ -8,6 +8,8 @@ from src.combat_objects import school_id_to_names
 from src.paths import wizard_city_dance_game_path
 from src.utils import assign_pet_level, get_ui_tree_text
 
+gui.set_global_icon("..\\Deimos-logo.ico")
+
 
 class GUICommandType(Enum):
 	# deimos <-> window
@@ -374,7 +376,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
 		[client_info_layout]
 	]
 
-	window = gui.Window(title= f'{tool_name} GUI v{tool_version}', layout= layout, keep_on_top=gui_on_top, finalize=True)
+	window = gui.Window(title= f'{tool_name} GUI v{tool_version}', layout= layout, keep_on_top=gui_on_top, finalize=True, icon="..\\Deimos-logo.ico")
 	return window
 
 def show_ui_tree_popup(ui_tree_content):
@@ -408,7 +410,7 @@ def show_ui_tree_popup(ui_tree_content):
         [gui.Input(key='-SEARCH-', enable_events=True)],
         [gui.Button('Close')]
     ]
-    UITreeWindow = gui.Window('UI Tree', layout, finalize=True)
+    UITreeWindow = gui.Window('UI Tree', layout, finalize=True, icon="..\\Deimos-logo.ico")
 
     while True:
         event, values = UITreeWindow.read()
@@ -437,7 +439,7 @@ def show_entity_list_popup(entity_list_content):
         [gui.Input(key='-SEARCH-', enable_events=True)],
         [gui.Button('Close')]
     ]
-    EntityListWindow = gui.Window('Entity List', layout, finalize=True)
+    EntityListWindow = gui.Window('Entity List', layout, finalize=True, icon="..\\Deimos-logo.ico")
 
     while True:
         event, values = EntityListWindow.read()
