@@ -53,6 +53,8 @@ gui.set_options(suppress_error_popups=True, suppress_raise_key_errors=True, scal
 gui.PySimpleGUI.SUPPRESS_ERROR_POPUPS = True
 gui.PySimpleGUI.SUPPRESS_RAISE_KEY_ERRORS = True
 
+cMessageBox = ctypes.windll.user32.MessageBoxW
+
 tool_version: str = '3.10.0'
 tool_name: str = 'Deimos'
 tool_author: str = 'Deimos-Wizard101'
