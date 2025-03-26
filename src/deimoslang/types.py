@@ -35,6 +35,7 @@ class TeleportKind(Enum):
     mob = auto()
     quest = auto()
     client_num = auto()
+    nav = auto()
 
 class EvalKind(Enum):
     health = auto()
@@ -97,6 +98,7 @@ class ExprKind(Enum):
     window_disabled = auto()
     same_place = auto()
     in_range = auto()
+    has_yaw = auto()
 
 
 # TODO: Replace asserts
@@ -133,12 +135,18 @@ class Command:
             return f"{self.kind.name}({params_str})"
         else:
             return f"{self.kind.name}({params_str}) @ {self.player_selector}"
-
-
+        
 
 class Expression:
     def __init__(self):
         pass
+
+class ListExpression(Expression):
+    def __init__(self, items: list[Expression]):
+        self.items = items
+
+    def __repr__(self) -> str:
+        return f"ListE({self.items})"
 
 class NumberExpression(Expression):
     def __init__(self, number: float | int):
