@@ -164,8 +164,6 @@ def read_config(config_name : str):
 	gui_scale = parser.getfloat('gui', 'scale', fallback=1.0)
 	gui_font = parser.get('gui', 'font', fallback='Bahnschrift')
 	gui_font_size = parser.getint('gui', 'font_size', fallback=14)
-	print(gui_font)
-	print(gui_font_size)
 	gui.set_options(scaling=gui_scale, font=(gui_font, gui_font_size))
 	# gui.set_options(scaling=gui_scale, font=('Bahnschrift', gui_font_size))
 
