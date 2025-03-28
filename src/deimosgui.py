@@ -336,10 +336,12 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
     client_title = gui.Text(tl('Client') + ': ', key='Title', text_color=gui_text_color)
 
     # TODO: Does it make any sense to translate this? Has more occurences later in the file
-    x_pos = gui.Text('x: ', key='x', auto_size_text=False, text_color=gui_text_color)
-    y_pos = gui.Text('y: ', key='y', auto_size_text=False, text_color=gui_text_color)
-    z_pos = gui.Text('z: ', key='z', auto_size_text=False, text_color=gui_text_color)
-    yaw = gui.Text(tl('Yaw') + ': ', key='Yaw', auto_size_text=False, text_color=gui_text_color)
+    # x_pos = gui.Text('x: ', key='x', auto_size_text=False, text_color=gui_text_color)
+    # y_pos = gui.Text('y: ', key='y', auto_size_text=False, text_color=gui_text_color)
+    # z_pos = gui.Text('z: ', key='z', auto_size_text=False, text_color=gui_text_color)
+    # yaw = gui.Text(tl('Yaw') + ': ', key='Yaw', auto_size_text=False, text_color=gui_text_color)
+    xyz_pos = gui.Text("Position (XYZ): ", key = 'xyz', auto_size_text=False, text_color=gui_text_color)
+    ypr_ori = gui.Text("Orientation (PRY): ", key = 'pry', auto_size_text=False, text_color=gui_text_color)
 
     zone_info = gui.Text(tl('Zone') + ': ', key='Zone', auto_size_text=False, size=(62, 1), text_color=gui_text_color)
 
@@ -350,10 +352,12 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
     client_info_layout = [
         [client_title],
         [zone_info],
-        [x_pos],
-        [y_pos],
-        [z_pos],
-        [yaw]
+        # [x_pos],
+        # [y_pos],
+        # [z_pos],
+        # [yaw]
+        [xyz_pos],
+        [ypr_ori]
     ]
 
     utils_layout = [
@@ -459,7 +463,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
             hotkey_button(tl('View Stats'), GUIKeys.button_view_stats, True),
             hotkey_button(tl('Copy Stats'), GUIKeys.copy_stats, True)
         ],
-        [gui.Multiline(tl('No client has been selected.'), key='stat_viewer', size=(66, 8), text_color=gui_text_color, horizontal_scroll=True)],
+        [gui.Multiline(tl('No client has been selected.'), key='stat_viewer', size=(64, 8), text_color=gui_text_color, horizontal_scroll=True)],
         [
             hotkey_button(tl('Swap Members'), GUIKeys.button_swap_members, True),
             gui.Text(tl('Force School Damage') + ':', text_color=gui_text_color),
@@ -471,7 +475,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
 
     flythrough_layout = [
         [gui.Text(dev_utils_notice, text_color=gui_text_color)],
-        [gui.Multiline(key='flythrough_creator', size=(66, 11), text_color=gui_text_color, horizontal_scroll=True)],
+        [gui.Multiline(key='flythrough_creator', size=(64, 11), text_color=gui_text_color, horizontal_scroll=True)],
         [
             gui.Input(key='flythrough_file_path', visible=False),
             gui.FileBrowse(tl('Import Flythrough'), file_types=(("Text Files", "*.txt"),), auto_size_button=True, button_color=(gui_text_color, gui_button_color)),
@@ -486,7 +490,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
 
     bot_creator_layout = [
         [gui.Text(dev_utils_notice, text_color=gui_text_color)],
-        [gui.Multiline(key='bot_creator', size=(66, 11), text_color=gui_text_color, horizontal_scroll=True)],
+        [gui.Multiline(key='bot_creator', size=(64, 11), text_color=gui_text_color, horizontal_scroll=True)],
         [
             gui.Input(key='bot_file_path', visible=False),
             gui.FileBrowse('Import Bot', file_types=(("Text Files", "*.txt"),), auto_size_button=True, button_color=(gui_text_color, gui_button_color)),
@@ -501,7 +505,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
 
     combat_config_layout = [
         [gui.Text(dev_utils_notice, text_color=gui_text_color)],
-        [gui.Multiline(key='combat_config', size=(66, 11), text_color=gui_text_color, horizontal_scroll=True)],
+        [gui.Multiline(key='combat_config', size=(64, 11), text_color=gui_text_color, horizontal_scroll=True)],
         [
             gui.Input(key='combat_file_path', visible=False),
             gui.FileBrowse('Import Playstyle', file_types=(("Text Files", "*.txt"),), auto_size_button=True, button_color=(gui_text_color, gui_button_color)),
@@ -526,7 +530,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
 
     console_layout = [
         [gui.Text(helpful_support_notice, text_color=gui_text_color)],
-        [gui.Multiline(autoscroll=True, horizontal_scroll=True, no_scrollbar=False, key="-CONSOLE-", size=(66, 11), text_color=gui_text_color, disabled = True, echo_stdout_stderr = True)],
+        [gui.Multiline(autoscroll=True, horizontal_scroll=True, no_scrollbar=False, key="-CONSOLE-", size=(64, 11), text_color=gui_text_color, disabled = True, echo_stdout_stderr = True)],
         [
             hotkey_button(tl('Collapse / Expand Logs'), GUIKeys.toggle_show_expanded_logs, True),
             hotkey_button(tl('Copy Logs'), GUIKeys.copy_logs, True)
@@ -555,7 +559,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
         [client_info_layout]
     ]
 
-    window = gui.Window(title= f'{tool_name} GUI v{tool_version} (beta)', layout= layout, keep_on_top=gui_on_top, finalize=True, icon="..\\Deimos-logo.ico", enable_close_attempted_event = False)
+    window = gui.Window(title= f'{tool_name} GUI v{tool_version} (beta 2)', layout= layout, keep_on_top=gui_on_top, finalize=True, icon="..\\Deimos-logo.ico", enable_close_attempted_event = False)
     # window.TKroot.iconbitmap(default = "..\Deimos-logo.icon")
     return window
 
@@ -590,7 +594,7 @@ def show_ui_tree_popup(ui_tree_content):
         [gui.Input(key='-SEARCH-', enable_events=True)],
         [gui.Button('Close')]
     ]
-    UITreeWindow = gui.Window('UI Tree', layout, finalize=True, icon="..\\Deimos-logo.ico")
+    UITreeWindow = gui.Window('UI Tree', layout, finalize=True, icon="..\\Deimos-logo.ico", keep_on_top=True)
 
     while True:
         event, values = UITreeWindow.read()
@@ -619,7 +623,7 @@ def show_entity_list_popup(entity_list_content):
         [gui.Input(key='-SEARCH-', enable_events=True)],
         [gui.Button('Close')]
     ]
-    EntityListWindow = gui.Window('Entity List', layout, finalize=True, icon="..\\Deimos-logo.ico")
+    EntityListWindow = gui.Window('Entity List', layout, finalize=True, icon="..\\Deimos-logo.ico", keep_on_top=True)
 
     while True:
         event, values = EntityListWindow.read()

@@ -49,7 +49,6 @@ from src.tokenizer import tokenize
 from src.deimoslang import vm
 
 gui.set_global_icon("..\\Deimos-logo.ico")
-gui.set_options(suppress_error_popups=True, suppress_raise_key_errors=True, scaling=1.0)
 gui.PySimpleGUI.SUPPRESS_ERROR_POPUPS = True
 gui.PySimpleGUI.SUPPRESS_RAISE_KEY_ERRORS = True
 
@@ -153,12 +152,22 @@ def read_config(config_name : str):
 	global gui_text_color
 	global gui_button_color
 	global gui_langcode
+	global gui_scale
+	global gui_font
+	global gui_font_size
 	# show_gui = parser.getboolean('gui', 'show_gui', fallback=True)
 	gui_on_top = parser.getboolean('gui', 'on_top', fallback=True)
 	gui_theme = parser.get('gui', 'theme', fallback='Black')
 	gui_text_color = parser.get('gui', 'text_color', fallback='white')
 	gui_button_color = parser.get('gui', 'button_color', fallback='#4a019e')
 	gui_langcode = parser.get('gui', 'locale', fallback='en')
+	gui_scale = parser.getfloat('gui', 'scale', fallback=1.0)
+	gui_font = parser.get('gui', 'font', fallback='Bahnschrift')
+	gui_font_size = parser.getint('gui', 'font_size', fallback=14)
+	print(gui_font)
+	print(gui_font_size)
+	gui.set_options(scaling=gui_scale, font=(gui_font, gui_font_size))
+	# gui.set_options(scaling=gui_scale, font=('Bahnschrift', gui_font_size))
 
 
 	# Auto Sigil Settings
@@ -224,7 +233,6 @@ while True:
 		download_file('https://raw.githubusercontent.com/notfaj/wizsprinter/main/wizwalker/extensions/wizsprinter/traversalData/uniqueObjectLocations.txt', os.path.join(folder_path, 'uniqueObjectLocations.txt'))
 		download_file('https://raw.githubusercontent.com/notfaj/wizsprinter/main/wizwalker/extensions/wizsprinter/traversalData/zoneMap.txt', os.path.join(folder_path, 'zoneMap.txt'))
 	break
-
 
 speed_status = False
 combat_status = False
@@ -1296,10 +1304,12 @@ async def main():
 					
 				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Title', f'Client: {foreground_client.title}')))
 				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Zone', f'Zone: {current_zone}')))
-				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('x', f'X: {current_pos.x}')))
-				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('y', f'Y: {current_pos.y}')))
-				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('z', f'Z: {current_pos.z}')))
-				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Yaw', f'Yaw: {current_rotation.yaw}')))
+				# gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('x', f'X: {current_pos.x}')))
+				# gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('y', f'Y: {current_pos.y}')))
+				# gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('z', f'Z: {current_pos.z}')))
+				# gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Yaw', f'Yaw: {current_rotation.yaw}')))
+				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('xyz', f'Position (XYZ): {current_pos.x}, {current_pos.y}, {current_pos.z}')))
+				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('pry', f'Orientation (PRY): {current_rotation.pitch}, {current_rotation.roll}, {current_rotation.yaw}')))
 			elif not walker.clients:
 				await asyncio.sleep(0.1)
 				continue
@@ -1398,8 +1408,8 @@ async def main():
 										await get_ui_tree(foreground.root_window)
 										logger.debug(f'Copied UI Tree for client {foreground.title}')
 										pyperclip.copy(ui_tree)
-										with open('ui_tree.txt', 'w') as f:
-											f.write(ui_tree)
+										# with open('ui_tree.txt', 'w') as f:
+										# 	f.write(ui_tree)
 										if ui_tree:
 											logger.success("Available UI Paths:")
 											gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.ShowUITreePopup, (ui_tree)))
