@@ -582,7 +582,8 @@ async def main():
 		# global tool_status
 		# tool_status = False;
 		logger.debug(f"Key {kill_tool_key} pressed, closing {tool_name}.")
-		gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.CloseFromBackend))
+		if walker.clients != 0:
+			gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.CloseFromBackend))
 		# raise deimosgui.ToolClosedException
 
 
@@ -1310,7 +1311,7 @@ async def main():
 				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('pry', f'Orientation (PRY): {current_rotation.pitch}, {current_rotation.roll}, {current_rotation.yaw}')))
 			elif not walker.clients:
 				await asyncio.sleep(0.1)
-				continue
+				# continue
 			# Stuff sent by the window
 			try:
 			# Eat as much as the queue gives us. We will be freed by exception
@@ -1318,10 +1319,15 @@ async def main():
 					com = recv_queue.get_nowait()
 					match com.com_type:
 						case deimosgui.GUICommandType.Close:
-							raise deimosgui.ToolClosedException
+							if len(walker.clients) != 0:
+								raise deimosgui.ToolClosedException
+							os._exit(0) # "Fuck you, you're getting terminated homeboy" - Slack
 						case deimosgui.GUICommandType.AttemptedClose:
 							raise deimosgui.ToolClosedException
 						case deimosgui.GUICommandType.ToggleOption:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							match com.data:
 								case GUIKeys.toggle_speedhack:
 									await toggle_speed_hotkey()
@@ -1353,6 +1359,9 @@ async def main():
 								case _:
 									logger.debug(f'Unknown window toggle: {com.data}')
 						case deimosgui.GUICommandType.Copy:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							match com.data:
 								case GUIKeys.copy_zone:
 									logger.debug('Copied Zone')
@@ -1425,6 +1434,9 @@ async def main():
 								case _:
 									logger.debug(f'Unknown copy value: {com.data}')
 						case deimosgui.GUICommandType.Teleport:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							match com.data:
 								case GUIKeys.hotkey_quest_tp:
 									await navmap_teleport_hotkey()
@@ -1435,6 +1447,9 @@ async def main():
 								case _:
 									logger.debug(f'Unknown teleport type: {com.data}')
 						case deimosgui.GUICommandType.CustomTeleport:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								x_input = param_input(com.data['X'], current_pos.x)
 								y_input = param_input(com.data['Y'], current_pos.y)
@@ -1445,6 +1460,9 @@ async def main():
 								await foreground_client.teleport(custom_xyz)
 								await foreground_client.body.write_yaw(yaw_input)
 						case deimosgui.GUICommandType.EntityTeleport:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							# Teleports to closest entity with vague name, using WizSprinter
 							if foreground_client:
 								sprinter = SprintyClient(foreground_client)
@@ -1454,6 +1472,9 @@ async def main():
 									entity_pos = await entity.location()
 									await foreground_client.teleport(entity_pos)
 						case deimosgui.GUICommandType.SelectEnemy:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client and await foreground_client.in_battle():
 								caster_index, target_index, base_damage, school_id, crit_status, force_school_status = com.data
 								if not base_damage:
@@ -1470,10 +1491,19 @@ async def main():
 							else:
 								logger.info('Last selected client is not currently in combat. You must be in combat to use the stat viewer.')
 						case deimosgui.GUICommandType.XYZSync:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							await xyz_sync_hotkey()
 						case deimosgui.GUICommandType.XPress:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							await x_press_hotkey()
 						case deimosgui.GUICommandType.AnchorCam:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								if freecam_status:
 									await toggle_freecam_hotkey()
@@ -1493,6 +1523,9 @@ async def main():
 						# 		logger.debug(f'Setting Auto Pet World to {com.data[1]}')
 						# 		assign_pet_level(com.data[1])
 						case deimosgui.GUICommandType.SetCamPosition:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								if not freecam_status:
 									await toggle_freecam_hotkey()
@@ -1510,6 +1543,9 @@ async def main():
 								await camera.write_position(input_pos)
 								await camera.update_orientation(Orient(pitch_input, roll_input, yaw_input))
 						case deimosgui.GUICommandType.SetCamDistance:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								camera = await foreground_client.game_client.elastic_camera_controller()
 								current_zoom = await camera.distance()
@@ -1528,6 +1564,9 @@ async def main():
 								if com.data["Max"]:
 									await camera.write_max_distance(max_input)
 						case deimosgui.GUICommandType.GoToZone:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								clients = [foreground_client]
 								if com.data[0]:
@@ -1539,6 +1578,9 @@ async def main():
 								else:
 									logger.error('Failed to go to zone.  It may be spelled incorrectly, or may not be supported.')
 						case deimosgui.GUICommandType.GoToWorld:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								clients = [foreground_client]
 								if com.data[0]:
@@ -1546,6 +1588,9 @@ async def main():
 										clients.append(c)
 								await to_world(clients, com.data[1])
 						case deimosgui.GUICommandType.GoToBazaar:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								clients = [foreground_client]
 								if com.data:
@@ -1557,6 +1602,9 @@ async def main():
 								else:
 									logger.error('Failed to go to zone.  It may be spelled incorrectly, or may not be supported.')
 						case deimosgui.GUICommandType.RefillPotions:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if foreground_client:
 								clients = [foreground_client]
 								if com.data:
@@ -1564,18 +1612,27 @@ async def main():
 										clients.append(c)
 								await asyncio.gather(*[auto_potions_force_buy(client, True) for client in clients])
 						case deimosgui.GUICommandType.ExecuteFlythrough:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							async def _flythrough():
 								await execute_flythrough(foreground_client, com.data)
 								await foreground_client.camera_elastic()
 							if foreground_client:
 								flythrough_task = asyncio.create_task(_flythrough())
 						case deimosgui.GUICommandType.KillFlythrough:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if flythrough_task is not None and not flythrough_task.cancelled():
 								flythrough_task.cancel()
 								flythrough_task = None
 								await asyncio.sleep(0)
 								await foreground_client.camera_elastic()
 						case deimosgui.GUICommandType.ExecuteBot:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							command_data: str = com.data
 							expert_mode = command_data.startswith("###deimos_expertmode")
 							async def run_bot():
@@ -1615,23 +1672,35 @@ async def main():
 								bot_task = None
 							bot_task = asyncio.create_task(try_task_coro(run_bot, walker.clients, True))
 						case deimosgui.GUICommandType.KillBot:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							if bot_task is not None and not bot_task.cancelled():
 								bot_task.cancel()
 								logger.debug('Bot Killed')
 								bot_task = None
 						case deimosgui.GUICommandType.SetPlaystyles:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							combat_configs = delegate_combat_configs(str(com.data), len(walker.clients))
 							for i, client in enumerate(walker.clients):
 								client.combat_config = combat_configs.get(i, default_config)
 							await toggle_combat_hotkey(False)
 							await toggle_combat_hotkey(False)
 						case deimosgui.GUICommandType.SetScale:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
 							desired_scale = param_input(com.data, 1.0)
 							logger.debug(f'Set Scale to {desired_scale}')
 							await asyncio.gather(*[client.body.write_scale(desired_scale) for client in walker.clients])
 			except queue.Empty:
 				pass
-			gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Auto PetStatus', bool_to_string(auto_pet_status))))
+
+			if walker.clients:
+				gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('Auto PetStatus', bool_to_string(auto_pet_status))))
+			
 			await asyncio.sleep(0.1)
 
 		else:
@@ -1969,7 +2038,6 @@ async def main():
 		p.client_to_follow = client_to_follow
 
 		# Set follower/leader statuses for auto questing/sigil
-
 		if client_to_follow:
 			if client_to_follow in p.title:
 				global sigil_leader_pid
@@ -1980,13 +2048,11 @@ async def main():
 				global questing_leader_pid
 				questing_leader_pid = p.process_id
 
-
 	await listener.add_hotkey(Keycode[kill_tool_key], kill_tool_hotkey, modifiers=ModifierKeys.NOREPEAT)
 	await enable_hotkeys()
 	logger.debug('Hotkeys ready!')
 	tool_status = True
 	exc = None
-
 
 	async def tool_active():
 		while tool_status:
@@ -2004,8 +2070,6 @@ async def main():
 	global anti_afk_questing_loop_task
 	global ban_watcher_task
 	global tool_active_task
-
-
 
 
 	try:

@@ -559,7 +559,7 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
         [client_info_layout]
     ]
 
-    window = gui.Window(title= f'{tool_name} GUI v{tool_version} (beta 2)', layout= layout, keep_on_top=gui_on_top, finalize=True, icon="..\\Deimos-logo.ico", enable_close_attempted_event = False)
+    window = gui.Window(title= f'{tool_name} GUI v{tool_version}', layout= layout, keep_on_top=gui_on_top, finalize=True, icon="..\\Deimos-logo.ico", enable_close_attempted_event = False)
     # window.TKroot.iconbitmap(default = "..\Deimos-logo.icon")
     return window
 
@@ -663,8 +663,11 @@ def manage_gui(send_queue: queue.Queue, recv_queue: queue.Queue, gui_theme, gui_
                     case GUICommandType.Close:
                         running = False
 
-                    case GUICommandType.CloseFromBackend:
+                    case GUICommandType.CloseFromBackend:                        
                         event = gui.WINDOW_CLOSE_ATTEMPTED_EVENT
+                        # running = False
+                        # if not com.data[0]:
+                        #     event = gui.WINDOW_CLOSED
 
                     case GUICommandType.UpdateWindow:
                         window[com.data[0]].update(com.data[1])
@@ -694,7 +697,6 @@ def manage_gui(send_queue: queue.Queue, recv_queue: queue.Queue, gui_theme, gui_
                 send_queue.put(GUICommand(GUICommandType.Close))
 
             case gui.WINDOW_CLOSE_ATTEMPTED_EVENT:
-                # running = False
                 send_queue.put(GUICommand(GUICommandType.AttemptedClose))
 
             # Toggles
