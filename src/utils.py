@@ -1234,7 +1234,7 @@ def index_with_str(input_str, desired_str: str) -> int:
     return None
 
 
-def read_webpage(url):
+def read_webpage(url) -> Union[List, None]:
     # return a list of lines from a hosted file
     try:
         response = requests.get(url, allow_redirects=True)
