@@ -2146,7 +2146,10 @@ def handle_tool_updating():
 	try:
 		update_server = read_webpage(f"{repo_path_raw}/LatestVersion.txt")
 	except Exception as e:
-		logger.error(f"Exception \"{type(e).__name__}\" occured when checking for updates: \"{e}\"")
+		print(f"Exception \"{type(e).__name__}\" occured when checking for updates: \"{e}\"")
+		return
+	
+	if update_server is None:
 		return
 
 	if update_server is not None and update_server[1].lower() == 'false':
