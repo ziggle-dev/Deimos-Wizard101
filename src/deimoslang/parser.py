@@ -128,6 +128,11 @@ class Parser:
                 self.i += 1
                 xyz = self.parse_xyz()
                 result.data = [ExprKind.has_xyz, xyz]
+            case TokenKind.command_expr_has_yaw:
+                result.kind = CommandKind.expr
+                self.i += 1
+                yaw = self.parse_atom()  
+                result.data = [ExprKind.has_yaw, yaw]
             case TokenKind.command_expr_health_above:
                 self.i += 1
                 num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
@@ -204,6 +209,43 @@ class Parser:
                 else:
                     evaluated = Eval(EvalKind.mana)
 
+            case TokenKind.command_expr_energy_above:
+                self.i += 1
+                num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+
+                if num.kind == TokenKind.percent:
+                    evaluated = DivideExpression(Eval(EvalKind.energy), Eval(EvalKind.energy))
+                else:
+                    evaluated = Eval(EvalKind.energy)
+
+                # evaluated > target
+                return self.gen_greater_expression(evaluated, target, player_selector)
+            case TokenKind.command_expr_energy_below:
+                self.i += 1
+                num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+
+                if num.kind == TokenKind.percent:
+                    evaluated = DivideExpression(Eval(EvalKind.energy), Eval(EvalKind.max_energy))
+                else:
+                    evaluated = Eval(EvalKind.energy)
+
+                # target > evaluated
+                return self.gen_greater_expression(target, evaluated, player_selector)
+            case TokenKind.command_expr_energy:
+                self.i += 1
+                num = self.expect_consume_any([TokenKind.number, TokenKind.percent])
+                assert(num.value!=None)
+                target = NumberExpression(num.value)
+
+                if num.kind == TokenKind.percent:
+                    evaluated = DivideExpression(Eval(EvalKind.energy), Eval(EvalKind.max_energy))
+                else:
+                    evaluated = Eval(EvalKind.energy)
+                    
                 # target == evaluated
                 return self.gen_equivalent_expression(target, evaluated, player_selector)
             case TokenKind.command_expr_bagcount_above:
@@ -288,12 +330,24 @@ class Parser:
                 self.i += 1
                 window_path = self.parse_window_path()
                 contains = self.consume_optional(TokenKind.contains)
-                target = self.expect_consume(TokenKind.string)
-                assert(type(window_path) == list and type(target.value) == str)
-                if contains:
-                    return SelectorGroup(player_selector, ContainsStringExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
+                
+                # Check if the next token is a square bracket for a list
+                if self.i < len(self.tokens) and self.tokens[self.i].kind == TokenKind.square_open:
+                    string_list = self.parse_list()
+                    
+                    # Create a list expression with all the strings
+                    if contains:
+                        return SelectorGroup(player_selector, ContainsStringExpression(Eval(EvalKind.windowtext, [window_path]), ListExpression(string_list)))
+                    else:
+                        return SelectorGroup(player_selector, EquivalentExpression(Eval(EvalKind.windowtext, [window_path]), string_list[0]))
                 else:
-                    return SelectorGroup(player_selector, EquivalentExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
+                    # Original behavior for single string
+                    target = self.expect_consume(TokenKind.string)
+                    assert(type(window_path) == list and type(target.value) == str)
+                    if contains:
+                        return SelectorGroup(player_selector, ContainsStringExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
+                    else:
+                        return SelectorGroup(player_selector, EquivalentExpression(Eval(EvalKind.windowtext, [window_path]), StringExpression(target.value.lower())))
             case TokenKind.command_expr_playercount:
                 self.i += 1
                 num = self.expect_consume(TokenKind.number)
@@ -558,6 +612,9 @@ class Parser:
                     case TokenKind.command_expr_mana:
                         self.i += 1
                         result.data = [LogKind.multi, StrFormatExpression("mana: %d/%d", Eval(EvalKind.mana), Eval(EvalKind.max_mana))]
+                    case TokenKind.command_expr_energy:
+                        self.i += 1
+                        result.data = [LogKind.multi, StrFormatExpression("energy: %d/%d", Eval(EvalKind.energy), Eval(EvalKind.max_energy))]
                     case TokenKind.command_expr_health:
                         self.i += 1
                         result.data = [LogKind.multi, StrFormatExpression("health: %d/%d", Eval(EvalKind.health), Eval(EvalKind.max_health))]
@@ -684,11 +741,22 @@ class Parser:
             case TokenKind.command_entitytp:
                 result.kind = CommandKind.teleport
                 self.i += 1
+                
+                # Check for optional 'nav' parameter
+                nav_mode = False
+                if self.tokens[self.i].kind == TokenKind.command_nav:
+                    self.i += 1 
+                    nav_mode = True
+                
                 arg = self.consume_optional(TokenKind.string)
                 if arg is not None:
                     result.data = [TeleportKind.entity_literal, arg.value]
+                    if nav_mode:
+                        result.data.insert(1, TeleportKind.nav)
                 else:
                     result.data = [TeleportKind.entity_vague, self.consume_any_ident().ident]
+                    if nav_mode:
+                        result.data.insert(1, TeleportKind.nav)
                 self.end_line()
             case TokenKind.command_tozone:
                 result.kind = CommandKind.tozone
@@ -789,6 +857,11 @@ class Parser:
                 self.i += 1
                 self.end_line()
                 return ReturnStmt()
+            case TokenKind.keyword_mixin:
+                self.i += 1
+                ident = self.consume_any_ident()
+                self.end_line()
+                return MixinStmt(ident.ident)
             case _:
                 return CommandStmt(self.parse_command())
 

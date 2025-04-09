@@ -1,4 +1,5 @@
 import asyncio
+import re
 from asyncio import Task as AsyncTask, TaskGroup
 
 from wizwalker import AddressOutOfRange, Client, XYZ, Keycode, MemoryReadError, Primitive
@@ -7,6 +8,7 @@ from wizwalker.memory.memory_objects.quest_data import QuestData, GoalData
 from wizwalker.extensions.wizsprinter import SprintyClient
 from wizwalker.extensions.wizsprinter.wiz_sprinter import Coroutine, upgrade_clients
 from wizwalker.extensions.wizsprinter.wiz_navigator import toZone
+from src.teleport_math import navmap_tp, calc_Distance
 
 from .tokenizer import *
 from .parser import *
@@ -145,6 +147,7 @@ class VM:
 
     async def _fetch_tracked_goal_text(self, client: SprintyClient) -> str:
         goal_txt = await get_quest_name(client)
+        goal_txt = re.sub(r'<[^>]*>', '', goal_txt)
         if '(' in goal_txt:
             goal_txt = goal_txt[:goal_txt.find("(")]
         return goal_txt.lower().strip()
@@ -185,7 +188,8 @@ class VM:
 
                         if entity_gid in data: continue
                         if not entity_name: continue
-                        if entity_name.lower() == target: 
+                        # Check if target is a substring of entity_name
+                        if target.lower() in entity_name.lower() or entity_name.lower() == target.lower(): 
                             found = True
                     if not found:
                         return False
@@ -277,7 +281,16 @@ class VM:
                     if abs(target_pos - client_pos) > 1:
                         return False
                 return True
-
+            case ExprKind.has_yaw:
+                target_yaw: float = await self.eval(expression.command.data[1]) # type: ignore
+                for client in clients:
+                    client_yaw = await client.body.yaw()
+                    # Round both values to the nearest tenth for comparison
+                    rounded_client_yaw = round(client_yaw, 1)
+                    rounded_target_yaw = round(target_yaw, 1)
+                    if rounded_client_yaw != rounded_target_yaw:
+                        return False
+                return True
             case _:
                 raise VMError(f"Unimplemented expression: {expression}")
 
@@ -349,9 +362,16 @@ class VM:
                 assert(isinstance(lhs, (int, float)))
                 assert(isinstance(rhs, (int, float)))
                 return lhs - rhs
+            case ListExpression():
+                return [await self.eval(item, client) for item in expression.items]
             case ContainsStringExpression():
                 lhs = await self.eval(expression.lhs, client)
                 rhs = await self.eval(expression.rhs, client)
+                
+                if isinstance(rhs, list):
+                    return any(item in lhs for item in rhs)
+                
+                # Original behavior for single string
                 return (rhs in lhs) #type: ignore
             case _:
                 raise VMError(f"Unimplemented expression type: {expression}")
@@ -367,6 +387,10 @@ class VM:
                 return await client.stats.current_mana()
             case EvalKind.max_mana:
                 return await client.stats.max_mana()
+            case EvalKind.energy:
+                return await client.current_energy()
+            case EvalKind.max_energy:
+                return await client.stats.energy_max()
             case EvalKind.bagcount:
                 return (await client.backpack_space())[0]
             case EvalKind.max_bagcount:
@@ -399,7 +423,6 @@ class VM:
             case EvalKind.max_potioncount:
                 return await client.stats.potion_max()
 
-
     async def exec_deimos_call(self, instruction: Instruction):
         assert instruction.kind == InstructionKind.deimos_call
         assert type(instruction.data) == list
@@ -420,12 +443,36 @@ class VM:
                                 tg.create_task(client.teleport(pos))
                         case TeleportKind.entity_literal:
                             name = args[-1]
+                            use_navmap = False
+                            if len(args) > 2 and args[-2] == TeleportKind.nav:
+                                use_navmap = True
+                                name = args[-1]
                             for client in clients:
-                                tg.create_task(client.tp_to_closest_by_name(name))
+                                async def tp_to_entity(client):
+                                    entity = await client.get_base_entity_by_name(name)
+                                    if entity:
+                                        pos = await entity.location()
+                                        if use_navmap:
+                                            await navmap_tp(client, pos)
+                                        else:
+                                            await client.teleport(pos)
+                                tg.create_task(tp_to_entity(client))
                         case TeleportKind.entity_vague:
                             vague = args[-1]
+                            use_navmap = False
+                            if len(args) > 2 and args[-2] == TeleportKind.nav:
+                                use_navmap = True
+                                vague = args[-1]
                             for client in clients:
-                                tg.create_task(client.tp_to_closest_by_vague_name(vague))
+                                async def tp_to_vague_entity(client):
+                                    entity = await client.find_closest_by_vague_name(vague)
+                                    if entity:
+                                        pos = await entity.location()
+                                        if use_navmap:
+                                            await navmap_tp(client, pos)
+                                        else:
+                                            await client.teleport(pos)
+                                tg.create_task(tp_to_vague_entity(client))
                         case TeleportKind.mob:
                             for client in clients:
                                 tg.create_task(client.tp_to_closest_mob())
@@ -433,7 +480,7 @@ class VM:
                             # TODO: "quest" could instead be treated as an XYZ expression or something
                             for client in clients:
                                 pos = await client.quest_position.position()
-                                tg.create_task(client.teleport(pos))
+                                tg.create_task(navmap_tp(client, pos))
                         case TeleportKind.friend_icon:
                             async def proxy(client: SprintyClient): # type: ignore
                                 # probably doesn't need mouseless

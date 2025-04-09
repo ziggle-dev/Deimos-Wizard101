@@ -41,6 +41,7 @@ class TokenKind(Enum):
     keyword_not = auto()
     keyword_return = auto()
     keyword_break = auto()
+    keyword_mixin = auto()
 
     command_kill = auto()
     command_sleep = auto()
@@ -63,6 +64,7 @@ class TokenKind(Enum):
     command_tozone = auto()
     command_load_playstyle = auto()
     command_set_yaw = auto()
+    command_nav = auto() 
 
     # command expressions
     command_expr_window_visible = auto()
@@ -86,6 +88,9 @@ class TokenKind(Enum):
     command_expr_mana = auto()
     command_expr_mana_above = auto()
     command_expr_mana_below = auto()
+    command_expr_energy = auto()
+    command_expr_energy_above = auto()
+    command_expr_energy_below = auto()
     command_expr_in_range = auto()
     command_expr_gold = auto()
     command_expr_gold_above = auto()
@@ -97,6 +102,7 @@ class TokenKind(Enum):
     command_expr_potion_countabove = auto()
     command_expr_potion_countbelow = auto()
     command_expr_has_quest = auto()
+    command_expr_has_yaw = auto()
 
     colon = auto() # :
     comma = auto()
@@ -335,6 +341,8 @@ class Tokenizer:
                                         put_simple(TokenKind.keyword_return, full)
                                     case "break" | "exitloop":
                                         put_simple(TokenKind.keyword_break, full)
+                                    case "mixin":
+                                        put_simple(TokenKind.keyword_mixin, full)
 
                                     # commands
                                     case "kill" | "killbot" | "stop" | "stopbot" | "end" | "exit":
@@ -379,6 +387,8 @@ class Tokenizer:
                                         put_simple(TokenKind.command_load_playstyle, full)
                                     case "turncam" | "setcamyaw":
                                         put_simple(TokenKind.command_set_yaw, full)
+                                    case "nav" | "navtp":
+                                        put_simple(TokenKind.command_nav, full)
 
                                     # expression commands
                                     case "contains":
@@ -419,6 +429,12 @@ class Tokenizer:
                                         put_simple(TokenKind.command_expr_mana_above, full)
                                     case "mana":
                                         put_simple(TokenKind.command_expr_mana, full)
+                                    case "energybelow":
+                                        put_simple(TokenKind.command_expr_energy_below, full)
+                                    case "energyabove":
+                                        put_simple(TokenKind.command_expr_energy_above, full)
+                                    case "energy":
+                                        put_simple(TokenKind.command_expr_energy, full)
                                     case "bagcount":
                                         put_simple(TokenKind.command_expr_bagcount, full)
                                     case "bagcountbelow":
@@ -447,6 +463,8 @@ class Tokenizer:
                                         put_simple(TokenKind.command_expr_has_quest, full)
                                     case "inrange":
                                         put_simple(TokenKind.command_expr_in_range, full)
+                                    case "hasyaw":
+                                        put_simple(TokenKind.command_expr_has_yaw, full)
                                     case _:
                                         put_simple(TokenKind.identifier, full)
                             i = j

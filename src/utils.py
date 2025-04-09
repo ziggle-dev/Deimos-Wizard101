@@ -3,6 +3,8 @@ import ctypes
 import time
 import traceback
 import requests
+import re
+import os
 
 import wizwalker.errors
 from wizwalker import Client, Keycode, XYZ, Primitive, kernel32
@@ -31,6 +33,24 @@ import ast
 
 streamportal_locations = ["aeriel", "zanadu", "outer athanor", "inner athanor", "sepidious", "mandalla", "chaos jungle", "reverie", "nimbus", "port aero", "husk"]
 nanavator_locations = ["karamelle city", "sweetzburg", "nibbleheim", "gutenstadt", "black licorice forest", "candy corn farm", "gobblerton"]
+
+def get_ui_tree_text(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            return file.read()
+    except FileNotFoundError:
+        return f"UI tree file '{file_path}' not found."
+    except Exception as e:
+        return f"Error reading UI tree file: {str(e)}"
+    
+def get_entity_text(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            return file.read()
+    except FileNotFoundError:
+        return f"Entity file '{file_path}' not found."
+    except Exception as e:
+        return f"Error reading entity file: {str(e)}"
 
 async def get_window_from_path(root_window: Window, name_path: list[str]) -> Window:
     # FULL CREDIT TO SIROLAF FOR THIS FUNCTION
@@ -358,6 +378,7 @@ async def navigate_to_ravenwood(client: Client):
     await client.send_key(Keycode.HOME, 0.1)
 
     await wait_for_zone_change(client, current_zone=current_zone)
+    await asyncio.sleep(3)
     use_spiral_door = False
     bartleby_navigation = True
     current_zone = await client.zone_name()
@@ -368,6 +389,7 @@ async def navigate_to_ravenwood(client: Client):
             while not await client.is_loading():
                 await client.send_key(Keycode.S, 0.1)
             await wait_for_zone_change(client, current_zone=current_zone)
+            await asyncio.sleep(3)
             bartleby_navigation = False
 
         # Handling for arcanum apartment
@@ -375,7 +397,7 @@ async def navigate_to_ravenwood(client: Client):
             while not await client.is_loading():
                 await client.send_key(Keycode.S, 0.1)
             await wait_for_zone_change(client, current_zone=current_zone)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(3)
             await client.teleport(XYZ(x=-19.1153507232666, y=-6312.8994140625, z=-2.00579833984375))
             await client.send_key(Keycode.D, 0.1)
             use_spiral_door = True
@@ -389,7 +411,7 @@ async def navigate_to_ravenwood(client: Client):
     if use_spiral_door:
         while not await is_visible_by_path(client, spiral_door_teleport_path):
             await client.send_key(Keycode.X, 0.1)
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(2)
         await spiral_door(client)
 
     # Navigate through bartleby if needed
@@ -414,11 +436,11 @@ async def navigate_to_potions(client: Client):
     hilda = XYZ(-4398.70654296875, 1016.1954345703125, 229.00079345703125)
      # make sure client is not loading
     while await client.is_loading():
-      await asyncio.sleep(0.1)
-      #Teleports to Hilda if not already in range
+        await asyncio.sleep(0.1)
+    #Teleports to Hilda if not already in range
     while not await client.is_in_npc_range():
-      await client.teleport(hilda)
-      await asyncio.sleep(2)
+        await client.teleport(hilda)
+        await asyncio.sleep(2)
     # Teleport to hilda brewer
 
 
@@ -479,8 +501,6 @@ async def buy_potions(client: Client, recall: bool = True, original_zone=None):
                 except LoadingScreenNotFound:
                     pass
 
-
-
 async def to_world(clients, destinationWorld):
     world_hub_zones = ['WizardCity/WC_Hub', 'Krokotopia/KT_Hub', 'Marleybone/MB_Hub', 'MooShu/MS_Hub', 'DragonSpire/DS_Hub_Cathedral', 'Grizzleheim/GH_MainHub', 'Celestia/CL_Hub', 'Wysteria/PA_Hub', 'Zafaria/ZF_Z00_Hub', 'Avalon/AV_Z00_Hub', 'Azteca/AZ_Z00_Zocalo', 'Khrysalis/KR_Z00_Hub', 'Polaris/PL_Z00_Walruskberg', 'Mirage/MR_Z00_Hub', 'Empyrea/EM_Z00_Aeriel_HUB', 'Karamelle/KM_Z00_HUB', 'Lemuria/LM_Z00_Hub']
     world_list = ["WizardCity", "Krokotopia", "Marleybone", "MooShu", "DragonSpire", "Grizzleheim", "Celestia", "Wysteria", "Zafaria", "Avalon", "Azteca", "Khrysalis", "Polaris", "Mirage", "Empyrea", "Karamelle", "Lemuria"]
@@ -513,6 +533,9 @@ async def is_potion_needed(client: Client, minimum_mana: int = 16):
     if minimum_mana > await client.stats.reference_level():
         minimum_mana = client_level
     combined_minimum_mana = int(0.23 * max_mana) + minimum_mana
+
+    if max_health == 0:
+        return False
 
     if mana < combined_minimum_mana or float(health) / float(max_health) < 0.55:
         return True
@@ -1211,7 +1234,7 @@ def index_with_str(input_str, desired_str: str) -> int:
     return None
 
 
-def read_webpage(url):
+def read_webpage(url) -> Union[List, None]:
     # return a list of lines from a hosted file
     try:
         response = requests.get(url, allow_redirects=True)
@@ -1362,5 +1385,5 @@ def override_wiz_install_using_handle(max_size = 100):
     handle = kernel32.OpenProcess(0x410, 0, pid) # PROCESS_QUERY_INFORMATION and PROCESS_VM_READ
     ctypes.windll.psapi.GetModuleFileNameExW(handle, None, ctypes.byref(path), max_size)
     kernel32.CloseHandle(handle)
-    install_location = path.value.replace("\Bin\WizardGraphicalClient.exe", "")
+    install_location = path.value.replace("\\Bin\\WizardGraphicalClient.exe", "")
     override_wiz_install_location(install_location)

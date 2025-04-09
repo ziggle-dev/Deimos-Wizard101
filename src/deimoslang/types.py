@@ -35,12 +35,15 @@ class TeleportKind(Enum):
     mob = auto()
     quest = auto()
     client_num = auto()
+    nav = auto()
 
 class EvalKind(Enum):
     health = auto()
     max_health = auto()
     mana = auto()
     max_mana = auto()
+    energy = auto()
+    max_energy = auto()
     bagcount = auto()
     max_bagcount = auto()
     gold = auto()
@@ -83,6 +86,9 @@ class ExprKind(Enum):
     mana = auto()
     mana_above = auto()
     mana_below = auto()
+    energy = auto()
+    energy_above = auto()
+    energy_below = auto()
     bag_count = auto()
     bag_count_above = auto()
     bag_count_below = auto()
@@ -92,6 +98,7 @@ class ExprKind(Enum):
     window_disabled = auto()
     same_place = auto()
     in_range = auto()
+    has_yaw = auto()
 
 
 # TODO: Replace asserts
@@ -128,12 +135,18 @@ class Command:
             return f"{self.kind.name}({params_str})"
         else:
             return f"{self.kind.name}({params_str}) @ {self.player_selector}"
-
-
+        
 
 class Expression:
     def __init__(self):
         pass
+
+class ListExpression(Expression):
+    def __init__(self, items: list[Expression]):
+        self.items = items
+
+    def __repr__(self) -> str:
+        return f"ListE({self.items})"
 
 class NumberExpression(Expression):
     def __init__(self, number: float | int):
@@ -299,6 +312,13 @@ class ReturnStmt(Stmt):
     def __repr__(self) -> str:
         return f"ReturnS"
 
+class MixinStmt(Stmt):
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self):
+        return f"MixinS {self.name}"
+
 class LoopStmt(Stmt):
     def __init__(self, body: StmtList):
         self.body = body
@@ -328,12 +348,13 @@ class TimesStmt(Stmt):
         self.body = body
 
     def __repr__(self) -> str:
-        return f"TimesS {self.expr} {{ {self.body} }}"
+        return f"TimesS {self.num} {{ {self.body} }}"
 
 class BlockDefStmt(Stmt):
     def __init__(self, name: Expression, body: StmtList) -> None:
         self.name = name
         self.body = body
+        self.mixins: set[str] = set()
 
     def __repr__(self) -> str:
         return f"BlockDefS {self.name} {{ {self.body} }}"
