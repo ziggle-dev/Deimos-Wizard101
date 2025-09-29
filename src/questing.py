@@ -180,6 +180,11 @@ class Quester():
 
         await asyncio.sleep(2)
 
+        # Track entities in new zone
+        from src.quest_db import get_quest_db
+        db = get_quest_db()
+        await db.track_zone_entities(self.current_leader_client)
+
     async def friend_teleport(self, maybe_solo_zone: bool):
         clients_in_solo_zone = []
         solo_zone = None
@@ -811,6 +816,11 @@ class Quester():
 
         await asyncio.sleep(1.0)
 
+        # Track entities in the new dungeon zone
+        from src.quest_db import get_quest_db
+        db = get_quest_db()
+        await db.track_zone_entities(self.current_leader_client)
+
         # check for instance desync, and attempt to fix if it has happened
         if questing_friend_tp:
             num_visible_clients = await self.num_clients_in_same_area()
@@ -1319,6 +1329,11 @@ class Quester():
         else:
             while await self.client.is_loading():
                 await asyncio.sleep(.1)
+
+        # Track entities after zone change
+        from src.quest_db import get_quest_db
+        db = get_quest_db()
+        await db.track_zone_entities(self.client)
 
     async def auto_quest_solo(self, auto_pet_disabled=False, ignore_pet_level_up=False, play_dance_game=False):
         if await is_free(self.client):

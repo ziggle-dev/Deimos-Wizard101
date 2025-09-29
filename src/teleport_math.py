@@ -263,8 +263,20 @@ async def navmap_tp(client: Client, xyz: XYZ = None, leader_client: Client = Non
     if check_sigma(starting_xyz, target_xyz):
         return # save some work
 
+    # Try database cached location first for quest teleports
+    from src.quest_db import get_quest_db
+    db = get_quest_db()
+    cached_location = db.get_quest_location(starting_zone)
+    if cached_location and not xyz:  # Only use cached for quest position TPs
+        await client.teleport(cached_location)
+        if await finished_tp():
+            return  # Cached location worked!
+
     await client.teleport(target_xyz)
     if await finished_tp():
+        # Store successful quest TP location in database if this was a quest TP
+        if not xyz:  # Only cache quest position TPs
+            db.store_quest_location(starting_zone, target_xyz)
         return # trivial tp, no point using a more complex method if this one works
 
     try:
@@ -316,11 +328,17 @@ async def navmap_tp(client: Client, xyz: XYZ = None, leader_client: Client = Non
     if await check_success():
         if await is_free(client) and await client.zone_name() == starting_zone:
             await client.goto(target_xyz.x, target_xyz.y)
+        # Store successful quest TP location
+        if not xyz:
+            db.store_quest_location(starting_zone, ap2)
         return
     await client.teleport(avg_xyz) # average point
     if await check_success():
         if await is_free(client) and await client.zone_name() == starting_zone:
             await client.goto(target_xyz.x, target_xyz.y)
+        # Store successful quest TP location
+        if not xyz:
+            db.store_quest_location(starting_zone, avg_xyz)
         return
     await fallback_spiral_tp(client, target_xyz)
 

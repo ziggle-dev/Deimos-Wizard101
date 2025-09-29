@@ -11,3 +11,6 @@ dist/
 .secret/*
 .secret
 .secrets
+*.bat
+*.db
+.idea/

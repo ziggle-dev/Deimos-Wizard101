@@ -208,6 +208,9 @@ class GUICommandType(Enum):
     UpdateConsole = auto()
     CopyConsole = auto()
 
+    GoToEntity = auto()
+    RefreshEntities = auto()
+
     ShowUITreePopup = auto()
     ShowEntityListPopup = auto()
 
@@ -258,6 +261,10 @@ class GUIKeys:
     button_set_distance = "buttonsetdistance"
     button_view_stats = "buttonviewstats"
     button_swap_members = "buttonswapmembers"
+
+    button_go_to_entity = "buttongotoentity"
+    button_mass_go_to_entity = "buttonmassgotoentity"
+    button_refresh_entities = "buttonrefreshentities"
 
     button_execute_flythrough = "buttonexecuteflythrough"
     button_kill_flythrough = "buttonkillflythrough"
@@ -539,11 +546,30 @@ def create_gui(gui_theme, gui_text_color, gui_button_color, tool_name, tool_vers
 
     framed_console_layout = gui.Frame(tl('Debug Console'), console_layout, title_color=gui_text_color)
 
+    entity_tp_layout = [
+        [gui.Text(dev_utils_notice, text_color=gui_text_color)],
+        [gui.Text(tl('Entity teleport uses stored zone data to find and teleport to specific entities.'), text_color=gui_text_color)],
+        [
+            gui.Text(tl('Entity Name') + ':', text_color=gui_text_color),
+            gui.Combo([], size=(30, 1), key='EntityComboInput', readonly=False, enable_events=True),
+            hotkey_button(tl('Refresh Entities'), GUIKeys.button_refresh_entities, True)
+        ],
+        [
+            hotkey_button(tl('Go To Entity'), GUIKeys.button_go_to_entity, True),
+            hotkey_button(tl('Mass Go To Entity'), GUIKeys.button_mass_go_to_entity, True)
+        ],
+        [gui.Text(tl('Current Zone') + ': ', key='EntityCurrentZone', text_color=gui_text_color)],
+        [gui.Multiline(tl('Available entities will appear here after refreshing.'), key='entity_list_display', size=(64, 15), text_color=gui_text_color, disabled=True, horizontal_scroll=True)]
+    ]
+
+    framed_entity_tp_layout = gui.Frame(tl('Entity Teleport'), entity_tp_layout, title_color=gui_text_color)
+
     tabs = [
         [
             gui.Tab(tl('Hotkeys'), [[framed_toggles_layout, framed_hotkeys_layout, framed_mass_hotkeys_layout, framed_utils_layout]], title_color=gui_text_color),
             gui.Tab(tl('Camera'), [[framed_camera_controls_layout]], title_color=gui_text_color),
             gui.Tab(tl('Dev Utils'), [[framed_custom_tp_layout], [framed_dev_utils_layout]], title_color=gui_text_color),
+            gui.Tab(tl('Entity TP'), [[framed_entity_tp_layout]], title_color=gui_text_color),
             gui.Tab(tl('Stat Viewer'), [[framed_stat_viewer_layout]], title_color=gui_text_color),
             gui.Tab(tl('Flythrough'), [[framed_flythrough_layout]], title_color=gui_text_color),
             gui.Tab(tl('Bot'), [[framed_bot_creator_layout]], title_color=gui_text_color),
@@ -812,6 +838,17 @@ def manage_gui(send_queue: queue.Queue, recv_queue: queue.Queue, gui_theme, gui_
 
             case GUIKeys.button_set_scale:
                 send_queue.put(GUICommand(GUICommandType.SetScale, inputs['scale']))
+
+            case GUIKeys.button_go_to_entity:
+                if inputs['EntityComboInput']:
+                    send_queue.put(GUICommand(GUICommandType.GoToEntity, (False, inputs['EntityComboInput'])))
+
+            case GUIKeys.button_mass_go_to_entity:
+                if inputs['EntityComboInput']:
+                    send_queue.put(GUICommand(GUICommandType.GoToEntity, (True, inputs['EntityComboInput'])))
+
+            case GUIKeys.button_refresh_entities:
+                send_queue.put(GUICommand(GUICommandType.RefreshEntities))
 
             case GUIKeys.button_view_stats:
                 enemy_index = re.sub(r'[^0-9]', '', str(inputs['EnemyInput']))

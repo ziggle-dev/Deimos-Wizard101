@@ -1280,9 +1280,30 @@ async def main():
 		gui_thread.daemon = True
 		gui_thread.start()
 		enemy_stats = []
+		last_zone = None  # Track zone changes for auto-refresh
 		while True:
 			if walker.clients and foreground_client:
 				current_zone = await foreground_client.zone_name()
+
+				# Auto-refresh entities when zone changes
+				if current_zone != last_zone and current_zone is not None:
+					if last_zone is not None:  # Don't refresh on first load
+						try:
+							from src.quest_db import get_quest_db
+							db = get_quest_db()
+							logger.debug(f'Zone changed from {last_zone} to {current_zone}, auto-refreshing entities')
+							await db.track_zone_entities(foreground_client)
+
+							# Update GUI with ALL entities from database
+							all_entities_formatted = db.get_all_entities_with_metadata(current_zone)
+							if all_entities_formatted:
+								gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindowValues, ('EntityComboInput', all_entities_formatted)))
+								gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('EntityCurrentZone', f'Current Zone: {current_zone}')))
+								logger.debug(f'Auto-refreshed: {len(all_entities_formatted)} entities available (current zone: {current_zone})')
+						except Exception as e:
+							logger.error(f'Failed to auto-refresh entities: {e}')
+					last_zone = current_zone
+
 				try:
 					if await foreground_client.game_client.is_freecam():
 						camera = await foreground_client.game_client.free_camera_controller()
@@ -1614,6 +1635,135 @@ async def main():
 									logger.debug('Reached destination zone: ' + await foreground_client.zone_name())
 								else:
 									logger.error('Failed to go to zone.  It may be spelled incorrectly, or may not be supported.')
+						case deimosgui.GUICommandType.GoToEntity:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
+							if foreground_client:
+								from src.quest_db import get_quest_db
+								db = get_quest_db()
+								current_zone = await foreground_client.zone_name()
+								entity_selection = com.data[1]
+
+								# Parse the formatted selection to get just the entity name
+								# Example: "Cat Tail [Reagent] (WC_Streets)" -> "Cat Tail"
+								entity_name = db.parse_entity_selection(entity_selection)
+								logger.debug(f'Parsed entity name: "{entity_name}" from selection: "{entity_selection}"')
+
+								# First try current zone
+								entity_data = db.find_entity_by_name(current_zone, entity_name)
+
+								if not entity_data:
+									# Entity not in current zone, search across all zones
+									entity_with_zone = db.get_entity_with_zone(entity_name)
+									if entity_with_zone:
+										target_zone, entity_xyz, display_name = entity_with_zone
+										logger.info(f'Entity "{entity_name}" found in {target_zone}. Navigating there first...')
+
+										clients = [foreground_client]
+										if com.data[0]:  # mass operation
+											clients.extend(background_clients)
+
+										# Go to the zone first using existing zone navigation
+										zoneChanged = await toZone(clients, target_zone)
+										if zoneChanged == 0:
+											logger.debug(f'Reached zone {target_zone}, now teleporting to entity')
+											# Now teleport to entity
+											for c in clients:
+												try:
+													await c.teleport(entity_xyz)
+												except:
+													logger.error(f'Failed to teleport client {c.title} to entity')
+										else:
+											logger.error(f'Failed to navigate to zone {target_zone}')
+									else:
+										logger.error(f'Entity "{entity_name}" not found in database. Try refreshing entities or visiting the zone.')
+								else:
+									# Entity in current zone, teleport directly
+									entity_xyz, entity_template = entity_data
+									clients = [foreground_client]
+									if com.data[0]:  # mass teleport
+										clients.extend(background_clients)
+
+									logger.debug(f'Teleporting to entity {entity_name} at {entity_xyz}')
+									for c in clients:
+										try:
+											await c.teleport(entity_xyz)
+										except:
+											logger.error(f'Failed to teleport client {c.title} to entity')
+						case deimosgui.GUICommandType.RefreshEntities:
+							if not walker.clients:
+								logger.info("This GUI option requires hooks to be active, skipping.")
+								continue
+							if foreground_client:
+								from src.quest_db import get_quest_db
+								db = get_quest_db()
+								current_zone = await foreground_client.zone_name()
+
+								logger.debug(f'Refreshing entities for zone: {current_zone}')
+								await db.track_zone_entities(foreground_client)
+
+								# Update GUI with ALL entities from database (not just current zone)
+								all_entities_formatted = db.get_all_entities_with_metadata(current_zone)
+								if all_entities_formatted:
+									gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindowValues, ('EntityComboInput', all_entities_formatted)))
+									gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('EntityCurrentZone', f'Current Zone: {current_zone}')))
+									logger.debug(f'Loaded {len(all_entities_formatted)} entities from database (marked current zone: {current_zone})')
+
+									# Get categorized entities using behavior-based classification
+									categories = db.get_entities_by_category(current_zone)
+
+									# Count entities
+									total_entities = sum(len(cat) for cat in categories.values())
+									reagent_count = len(categories['reagents'])
+									npc_count = len(categories['npcs'])
+									quest_obj_count = len(categories['quest_objects'])
+
+									# Display entities with categorization
+									entity_list_text = f"Found {total_entities} entities in {current_zone} (Behavior-based classification)\n\n"
+									entity_list_text += "SUMMARY:\n"
+									entity_list_text += f"  • {reagent_count} Reagents/Collectibles\n"
+									entity_list_text += f"  • {npc_count} NPCs\n"
+									entity_list_text += f"  • {quest_obj_count} Quest Objects\n"
+									entity_list_text += f"  • {len(categories['wisps'])} Wisps\n"
+									entity_list_text += f"  • {len(categories['duel_circles'])} Duel Circles\n"
+									entity_list_text += f"  • {len(categories['other'])} Other\n\n"
+
+									# Show reagents first (most useful)
+									if reagent_count > 0:
+										entity_list_text += "REAGENTS & COLLECTIBLES:\n"
+										for entity_name, xyz, display_name, behaviors in categories['reagents']:
+											if display_name:
+												entity_list_text += f"  ✓ {display_name}\n"
+											else:
+												entity_list_text += f"  • {entity_name}\n"
+										entity_list_text += "\n"
+
+									# Show quest objects
+									if quest_obj_count > 0:
+										entity_list_text += "QUEST OBJECTS:\n"
+										for entity_name, xyz, display_name, behaviors in categories['quest_objects']:
+											name = display_name if display_name else entity_name
+											entity_list_text += f"  ! {name}\n"
+										entity_list_text += "\n"
+
+									# Show NPCs (limited)
+									if npc_count > 0:
+										entity_list_text += "NPCs:\n"
+										for entity_name, xyz, display_name, behaviors in categories['npcs'][:10]:  # Limit to 10
+											name = display_name if display_name else entity_name
+											entity_list_text += f"  {name}\n"
+										if npc_count > 10:
+											entity_list_text += f"  ... and {npc_count - 10} more\n"
+										entity_list_text += "\n"
+
+									entity_list_text += f"Note: Classification based on entity behaviors (NPCBehavior, CollectBehavior, etc.)"
+
+									gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('entity_list_display', entity_list_text)))
+									logger.debug(f'Found {total_entities} entities: {reagent_count} reagents, {npc_count} NPCs, {quest_obj_count} quest objects')
+								else:
+									gui_send_queue.put(deimosgui.GUICommand(deimosgui.GUICommandType.UpdateWindow, ('entity_list_display', 'No entities found in this zone.')))
+									logger.warning('No entities found in current zone')
 						case deimosgui.GUICommandType.RefillPotions:
 							if not walker.clients:
 								logger.info("This GUI option requires hooks to be active, skipping.")
